@@ -84,7 +84,7 @@ export function validate14CharSerial(serialVal, fieldPrefix) {
 
   const len = s.length;
   if (countEl) {
-    countEl.textContent = `${len} / 14 chars`;
+    countEl.textContent = `${len}/14`;
     if (len === 14 && s.startsWith('AP25R')) {
       countEl.className = 'char-badge valid';
     } else {

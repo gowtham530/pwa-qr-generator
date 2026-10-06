@@ -624,15 +624,15 @@ button.outline:hover:not(:disabled) {
   <div class="card">
     <div class="row">
       <div class="field" style="flex: 1.2; min-width: 170px;">
-        <label for="uan-pdf">Enter UAN Number *</label>
+        <label for="uan-pdf">UAN No:</label>
         <input type="text" id="uan-pdf" placeholder="e.g. 101234567890" style="font-family:var(--font-mono);font-weight:600;letter-spacing:1px;" autocomplete="off" spellcheck="false">
         <div class="field-err-text" id="uan-err"></div>
       </div>
 
       <div class="field">
         <div style="display: flex; justify-content: space-between; align-items: center;">
-          <label for="start-pdf">Start serial number</label>
-          <span class="char-badge valid" id="start-char-count">14 / 14 chars</span>
+          <label for="start-pdf">Start S/N</label>
+          <span class="char-badge valid" id="start-char-count">14/14</span>
         </div>
         <input type="text" id="start-pdf" value="AP25R002006761" style="font-family:var(--font-mono);text-transform:uppercase" maxlength="14" autocomplete="off" spellcheck="false">
         <div class="field-err-text" id="start-serial-err"></div>
@@ -640,15 +640,15 @@ button.outline:hover:not(:disabled) {
 
       <div class="field">
         <div style="display: flex; justify-content: space-between; align-items: center;">
-          <label for="end-pdf">End serial number</label>
-          <span class="char-badge valid" id="end-char-count">14 / 14 chars</span>
+          <label for="end-pdf">End S/N</label>
+          <span class="char-badge valid" id="end-char-count">14/14</span>
         </div>
         <input type="text" id="end-pdf" value="AP25R002007340" style="font-family:var(--font-mono);text-transform:uppercase" maxlength="14" autocomplete="off" spellcheck="false">
         <div class="field-err-text" id="end-serial-err"></div>
       </div>
 
       <div class="field">
-        <label for="count-pdf">QR codes to generate</label>
+        <label for="count-pdf">No of QRs</label>
         <input type="number" id="count-pdf" value="580" min="1" max="580">
         <div class="field-err-text" style="visibility:hidden;">placeholder</div>
       </div>
@@ -656,7 +656,7 @@ button.outline:hover:not(:disabled) {
 
     <div class="actions-row" style="display: flex; gap: 8px; justify-content: flex-end; margin-top: 12px;">
       <button id="preview-btn" class="outline" onclick="startPreview()">Preview</button>
-      <button id="gen-btn" onclick="generatePDF()">Generate PDF (1 Click)</button>
+      <button id="gen-btn" onclick="generatePDF()">Generate</button>
     </div>
     <div class="err" id="err-pdf"></div>
     <div class="progress-bar" id="progress-pdf" style="display:none">

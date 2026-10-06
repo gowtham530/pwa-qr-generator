@@ -540,8 +540,6 @@ export function checkDuplicateSerial(startSerial, endSerial) {
   const ep = parseSerial(eNorm);
 
   for (const h of history) {
-    if ((h.startSerial || '').toUpperCase() === sNorm) return h;
-    if ((h.endSerial || '').toUpperCase() === eNorm) return h;
     if (sp && ep && h.startSerial && h.endSerial) {
       const hsp = parseSerial(h.startSerial);
       const hep = parseSerial(h.endSerial);
@@ -551,10 +549,25 @@ export function checkDuplicateSerial(startSerial, endSerial) {
           const eN = BigInt(ep.num);
           const hsN = BigInt(hsp.num);
           const heN = BigInt(hep.num);
+          // Check if intervals [sN, eN] and [hsN, heN] overlap by even 1 single number
           if (sN <= heN && eN >= hsN) {
-            return h;
+            const overlapStart = sN > hsN ? sN : hsN;
+            const overlapEnd = eN < heN ? eN : heN;
+            const overlapCount = Number(overlapEnd - overlapStart + 1n);
+            const overlapStartStr = sp.prefix + overlapStart.toString().padStart(sp.digits, '0');
+            const overlapEndStr = sp.prefix + overlapEnd.toString().padStart(sp.digits, '0');
+            return {
+              ...h,
+              overlapCount,
+              overlapStartStr,
+              overlapEndStr
+            };
           }
         } catch (e) {}
+      }
+    } else {
+      if ((h.startSerial || '').toUpperCase() === sNorm || (h.endSerial || '').toUpperCase() === eNorm) {
+        return { ...h, overlapCount: 1, overlapStartStr: sNorm, overlapEndStr: eNorm };
       }
     }
   }
@@ -829,14 +842,22 @@ export async function generatePDF() {
   if (uanErr) uanErr.textContent = '';
   if (uanInput) uanInput.classList.remove('input-invalid');
 
-  // 3. Check for Duplicate Serial Number
+  // 3. Check for Duplicate Serial Number (even 1 matching serial among 580 triggers error)
   const dupSerial = checkDuplicateSerial(startSerial, endSerial);
   if (dupSerial) {
     const startErr = document.getElementById('start-serial-err');
-    if (startErr) startErr.textContent = `❌ Duplicate Serial: Used on ${dupSerial.dateFormatted}`;
+    const overlapText = dupSerial.overlapCount
+      ? `${dupSerial.overlapCount} matching serial(s) in UAN: ${dupSerial.uan || 'N/A'}`
+      : `Used in UAN: ${dupSerial.uan || 'N/A'}`;
+    if (startErr) startErr.textContent = `❌ Duplicate: ${overlapText}`;
     const startInput = document.getElementById('start-pdf');
     if (startInput) startInput.classList.add('input-invalid');
-    alert(`❌ Duplicate Serial Number Error!\n\nSerial number "${startSerial}" has already been generated previously on ${dupSerial.dateFormatted} (UAN: ${dupSerial.uan || 'N/A'})!\n\nDuplicate serial numbers cannot be entered twice.`);
+
+    const countDetail = dupSerial.overlapCount
+      ? `${dupSerial.overlapCount} serial number(s) in this batch have already been generated`
+      : `Serial number range "${startSerial} → ${endSerial}" has already been generated`;
+
+    alert(`❌ Duplicate Serial Number Error!\n\n${countDetail} previously in UAN: "${dupSerial.uan || 'N/A'}" on ${dupSerial.dateFormatted}!\n\nOverlapping Range: ${dupSerial.overlapStartStr || startSerial} → ${dupSerial.overlapEndStr || endSerial}\n\nNotice: Even if only ONE serial number out of the 580 matches a previous UAN, generation is strictly blocked!`);
     return;
   }
 

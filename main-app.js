@@ -577,7 +577,26 @@ export function checkDuplicateSerial(startSerial, endSerial) {
 export function getQRHistory() {
   try {
     const raw = localStorage.getItem(HISTORY_STORAGE_KEY);
-    return raw ? JSON.parse(raw) : [];
+    const list = raw ? JSON.parse(raw) : [];
+    // Ensure startSerial is always the lower number and endSerial is higher
+    return list.map(item => {
+      if (item.startSerial && item.endSerial) {
+        const sp = parseSerial(item.startSerial);
+        const ep = parseSerial(item.endSerial);
+        if (sp && ep && sp.prefix === ep.prefix) {
+          try {
+            if (BigInt(sp.num) > BigInt(ep.num)) {
+              return {
+                ...item,
+                startSerial: item.endSerial,
+                endSerial: item.startSerial
+              };
+            }
+          } catch (e) {}
+        }
+      }
+      return item;
+    });
   } catch (e) {
     return [];
   }
@@ -813,8 +832,8 @@ export async function generatePDF() {
   if (!serials) return;
   const count = serials.length;
 
-  const startSerial = serials[0];
-  const endSerial = serials[serials.length - 1];
+  const startSerial = (document.getElementById('start-pdf')?.value || '').trim().toUpperCase();
+  const endSerial = (document.getElementById('end-pdf')?.value || '').trim().toUpperCase();
 
   // 1. Validate Enter UAN Number field
   const uanInput = document.getElementById('uan-pdf');

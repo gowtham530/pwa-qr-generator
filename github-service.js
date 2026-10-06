@@ -97,6 +97,8 @@ function mergeLicenses(remoteData) {
   return result;
 }
 
+let lastKnownSha = null;
+
 // Fetch licenses from GitHub (multi-device compatible, works with or without token)
 export async function fetchLicensesFromGitHub() {
   await ensureConfigLoaded();
@@ -114,8 +116,7 @@ export async function fetchLicensesFromGitHub() {
       const res = await fetch(url, {
         headers: {
           'Accept': 'application/vnd.github.v3+json',
-          'Authorization': `Bearer ${config.token}`,
-          'Cache-Control': 'no-cache'
+          'Authorization': `Bearer ${config.token}`
         }
       });
 
@@ -125,6 +126,7 @@ export async function fetchLicensesFromGitHub() {
 
       if (res.ok) {
         const json = await res.json();
+        if (json.sha) lastKnownSha = json.sha;
         const content = decodeBase64Utf8(json.content);
         const parsedData = JSON.parse(content || '{"users":{}}');
         const merged = mergeLicenses(parsedData);
@@ -163,22 +165,44 @@ export async function pushLicensesToGitHub(licensesData, commitMessage = 'Update
   }
 
   // First fetch latest SHA
-  let currentSha = null;
+  let currentSha = lastKnownSha;
   const getUrl = `https://api.github.com/repos/${config.owner}/${config.repo}/contents/${config.filePath}?ref=${config.branch}`;
   try {
     const getRes = await fetch(getUrl, {
       headers: {
         'Accept': 'application/vnd.github.v3+json',
-        'Authorization': `Bearer ${config.token}`,
-        'Cache-Control': 'no-cache'
+        'Authorization': `Bearer ${config.token}`
       }
     });
     if (getRes.ok) {
       const getJson = await getRes.json();
-      currentSha = getJson.sha;
+      if (getJson.sha) {
+        currentSha = getJson.sha;
+        lastKnownSha = getJson.sha;
+      }
     }
   } catch (e) {
     console.warn('Could not fetch existing SHA:', e);
+  }
+
+  // Fallback SHA retrieval without query parameter if needed
+  if (!currentSha) {
+    try {
+      const fallbackUrl = `https://api.github.com/repos/${config.owner}/${config.repo}/contents/${config.filePath}`;
+      const fRes = await fetch(fallbackUrl, {
+        headers: {
+          'Accept': 'application/vnd.github.v3+json',
+          'Authorization': `Bearer ${config.token}`
+        }
+      });
+      if (fRes.ok) {
+        const fJson = await fRes.json();
+        if (fJson.sha) {
+          currentSha = fJson.sha;
+          lastKnownSha = fJson.sha;
+        }
+      }
+    } catch (e) {}
   }
 
   const contentStr = JSON.stringify(licensesData, null, 2);
@@ -195,7 +219,7 @@ export async function pushLicensesToGitHub(licensesData, commitMessage = 'Update
   }
 
   try {
-    const putRes = await fetch(putUrl, {
+    let putRes = await fetch(putUrl, {
       method: 'PUT',
       headers: {
         'Accept': 'application/vnd.github.v3+json',
@@ -205,13 +229,44 @@ export async function pushLicensesToGitHub(licensesData, commitMessage = 'Update
       body: JSON.stringify(bodyPayload)
     });
 
+    // Handle 409 Conflict (SHA out of date) by fetching fresh SHA and retrying once
+    if (putRes.status === 409 || putRes.status === 422) {
+      try {
+        const retryGetRes = await fetch(`https://api.github.com/repos/${config.owner}/${config.repo}/contents/${config.filePath}?ref=${config.branch}`, {
+          headers: {
+            'Accept': 'application/vnd.github.v3+json',
+            'Authorization': `Bearer ${config.token}`
+          }
+        });
+        if (retryGetRes.ok) {
+          const rJson = await retryGetRes.json();
+          if (rJson.sha) {
+            bodyPayload.sha = rJson.sha;
+            lastKnownSha = rJson.sha;
+            putRes = await fetch(putUrl, {
+              method: 'PUT',
+              headers: {
+                'Accept': 'application/vnd.github.v3+json',
+                'Authorization': `Bearer ${config.token}`,
+                'Content-Type': 'application/json'
+              },
+              body: JSON.stringify(bodyPayload)
+            });
+          }
+        }
+      } catch (retryErr) {}
+    }
+
     if (!putRes.ok) {
       const errText = await putRes.text();
       return { success: false, error: `GitHub push failed (${putRes.status}): ${errText}` };
     }
 
     const putJson = await putRes.json();
-    return { success: true, sha: putJson.content ? putJson.content.sha : null, source: 'github' };
+    if (putJson.content && putJson.content.sha) {
+      lastKnownSha = putJson.content.sha;
+    }
+    return { success: true, sha: lastKnownSha, source: 'github' };
   } catch (err) {
     return { success: false, error: `GitHub network error: ${err.message}` };
   }

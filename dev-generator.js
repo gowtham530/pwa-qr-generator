@@ -185,8 +185,9 @@ export async function loadDashboardData() {
       </td>
       <td>
         <div class="table-actions">
-          <button class="btn-action-small" onclick="window.viewUserHistory('${key}')">📜 History</button>
-          <button class="btn-action-danger" onclick="window.deleteUser('${key}')" title="Revoke User">🗑️ Revoke</button>
+          <button class="btn-action-small" onclick="window.viewUserHistory('${key}')" title="View Batch History">📜 History</button>
+          <button class="btn-action-renew" onclick="window.renewUser('${key}')" title="Generate New Serial & Renew Quota">🔄 Renewal</button>
+          <button class="btn-action-danger" onclick="window.deleteUser('${key}')" title="Delete User">🗑️ Delete</button>
         </div>
       </td>
     `;
@@ -232,7 +233,22 @@ function setupGeneratorForm() {
       const licenses = res.data || { users: {} };
       if (!licenses.users) licenses.users = {};
 
+      // 3. Block Duplicate User Creation (Popup Error)
       const existingUser = licenses.users[normKey];
+      if (existingUser) {
+        alert(
+          `❌ Duplicate User Error!\n\n` +
+          `User "${username}" already exists!\n` +
+          `• Serial Key: ${existingUser.serial}\n` +
+          `• Quota: ${existingUser.remainingClicks} / ${existingUser.totalClicks} clicks remaining\n\n` +
+          `Duplicate usernames cannot be created.\n` +
+          `To renew or issue a new serial for this user, please tap "🔄 Renewal" in the User Quota table below.`
+        );
+        btnSubmit.disabled = false;
+        btnSubmit.textContent = '⚡ Generate Serial & Push to GitHub';
+        return;
+      }
+
       licenses.users[normKey] = {
         username: username,
         serial: serial,
@@ -241,7 +257,7 @@ function setupGeneratorForm() {
         remainingClicks: clicks,
         createdAt: new Date().toISOString(),
         lastActive: null,
-        history: existingUser ? existingUser.history || [] : []
+        history: []
       };
 
       // Push to GitHub
@@ -295,12 +311,36 @@ function setupSettingsModal() {
   const branchInput = document.getElementById('setting-branch');
   const tokenInput = document.getElementById('setting-token');
 
+  const eyeBtn = document.getElementById('btn-toggle-token-eye');
+  const tokenStatusEl = document.getElementById('saved-token-status');
+
+  if (eyeBtn) {
+    eyeBtn.addEventListener('click', () => {
+      if (tokenInput.type === 'password') {
+        tokenInput.type = 'text';
+        eyeBtn.textContent = '🙈';
+      } else {
+        tokenInput.type = 'password';
+        eyeBtn.textContent = '👁️';
+      }
+    });
+  }
+
   openBtn.addEventListener('click', () => {
     const cfg = getGitHubConfig();
     ownerInput.value = cfg.owner || 'gowtham530';
     repoInput.value = cfg.repo || 'pwa-qr-generator';
     branchInput.value = cfg.branch || 'main';
     tokenInput.value = cfg.token || '';
+    if (tokenStatusEl) {
+      if (cfg.token) {
+        tokenStatusEl.innerHTML = `🔑 Token Saved: <code>${cfg.token.slice(0, 4)}••••${cfg.token.slice(-4)}</code> (click 👁️ to view)`;
+        tokenStatusEl.style.color = '#10b981';
+      } else {
+        tokenStatusEl.textContent = '⚠️ No token currently saved';
+        tokenStatusEl.style.color = '#f59e0b';
+      }
+    }
     testMsg.textContent = '';
     modal.style.display = 'flex';
   });
@@ -362,17 +402,69 @@ function setupSettingsModal() {
 // Global actions for table
 
 window.deleteUser = async function(userKey) {
-  const confirmDel = confirm(`Are you sure you want to revoke and delete user "${userKey}"?`);
+  const confirmDel = confirm(`Are you sure you want to delete user "${userKey}"?\n\nThis user will be permanently removed from the system and will no longer have access.`);
   if (!confirmDel) return;
 
   const res = await fetchLicensesFromGitHub();
   const licenses = res.data || { users: {} };
   if (licenses.users && licenses.users[userKey]) {
+    const username = licenses.users[userKey].username || userKey;
     delete licenses.users[userKey];
-    await pushLicensesToGitHub(licenses, `Delete user ${userKey}`);
-    alert(`User "${userKey}" removed.`);
-    loadDashboardData();
+    const pushRes = await pushLicensesToGitHub(licenses, `Delete user ${username}`);
+    if (pushRes.success) {
+      alert(`✅ User "${username}" has been permanently deleted.`);
+    } else {
+      alert(`⚠️ User "${username}" deleted locally. (${pushRes.error})`);
+    }
+    await loadDashboardData();
   }
+};
+
+window.renewUser = async function(userKey) {
+  const res = await fetchLicensesFromGitHub();
+  const licenses = res.data || { users: {} };
+  if (!licenses.users || !licenses.users[userKey]) {
+    alert(`User "${userKey}" not found.`);
+    return;
+  }
+
+  const u = licenses.users[userKey];
+  const currentTotal = u.totalClicks || 1000;
+  const promptVal = prompt(
+    `🔄 Quota Renewal for User: "${u.username || userKey}"\n\nEnter new Click Quota to allocate:`,
+    String(currentTotal)
+  );
+  if (promptVal === null) return; // Cancelled
+
+  const newClicks = parseInt(promptVal, 10);
+  if (isNaN(newClicks) || newClicks <= 0) {
+    alert('❌ Please enter a valid positive number of clicks.');
+    return;
+  }
+
+  const newSerial = generate10DigitSerial();
+  u.serial = newSerial;
+  u.totalClicks = newClicks;
+  u.usedClicks = 0;
+  u.remainingClicks = newClicks;
+  u.renewedAt = new Date().toISOString();
+
+  const pushRes = await pushLicensesToGitHub(licenses, `Renew user ${u.username || userKey} with new serial ${newSerial} (${newClicks} clicks)`);
+
+  try {
+    await navigator.clipboard.writeText(newSerial);
+  } catch (e) {}
+
+  let alertMsg = `✅ Quota Renewed Successfully for ${u.username || userKey}!\n\n` +
+    `🔑 New 10-Digit Serial: ${newSerial}\n` +
+    `⚡ Allocated Quota: ${newClicks} clicks\n\n` +
+    `📋 New serial has been copied to your clipboard!\n` +
+    `Provide this new serial to the user to activate their renewed quota.`;
+  if (!pushRes.success) {
+    alertMsg += `\n\n⚠️ Sync Notice: ${pushRes.error}`;
+  }
+  alert(alertMsg);
+  await loadDashboardData();
 };
 
 window.viewUserHistory = function(userKey) {

@@ -335,6 +335,22 @@ tr:hover td {
   background: rgba(244, 63, 94, 0.25);
 }
 
+.btn-action-renew {
+  padding: 5px 9px;
+  font-size: 12px;
+  border-radius: 6px;
+  background: rgba(16, 185, 129, 0.15);
+  color: #34d399;
+  border: 1px solid rgba(16, 185, 129, 0.3);
+  cursor: pointer;
+  font-weight: 600;
+  transition: all 0.2s ease;
+}
+.btn-action-renew:hover {
+  background: rgba(16, 185, 129, 0.3);
+  transform: translateY(-1px);
+}
+
 .copy-small-btn {
   background: transparent;
   border: none;
@@ -546,7 +562,11 @@ tr:hover td {
         </div>
         <div class="form-group">
           <label for="setting-token">GitHub Personal Access Token (PAT) *</label>
-          <input type="password" id="setting-token" placeholder="ghp_... (Needs repo / Contents read & write)" autocomplete="off" />
+          <div style="position: relative; display: flex; align-items: center;">
+            <input type="password" id="setting-token" placeholder="ghp_... (Needs repo / Contents read & write)" autocomplete="off" style="padding-right: 42px;" />
+            <button type="button" id="btn-toggle-token-eye" style="position: absolute; right: 8px; background: none; border: none; cursor: pointer; font-size: 16px; color: #94a3b8;" title="Show/Hide Token">👁️</button>
+          </div>
+          <div id="saved-token-status" style="font-size: 11px; margin-top: 4px;"></div>
           <div style="font-size: 11px; color: #64748b; margin-top: 2px;">
             Token is stored securely only in your browser's localStorage.
           </div>

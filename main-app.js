@@ -319,7 +319,13 @@ export async function syncLatestQuotaFromGitHub(showToast = false) {
       const remoteTotal = Number(matchedUser.totalClicks) || 100;
       const remoteUsed = Number(matchedUser.usedClicks) || 0;
       const localUsed = Number(currentLicense.usedClicks) || 0;
-      const effectiveUsed = Math.max(remoteUsed, localUsed);
+      const isSameSerial = String(matchedUser.serial || '').trim() === String(currentLicense.serialNumber || '').trim();
+
+      // If user was renewed with a new serial on remote, discard old local click count
+      let effectiveUsed = remoteUsed;
+      if (isSameSerial) {
+        effectiveUsed = Math.max(remoteUsed, localUsed);
+      }
 
       currentLicense.totalClicks = remoteTotal;
       currentLicense.usedClicks = effectiveUsed;
@@ -328,7 +334,7 @@ export async function syncLatestQuotaFromGitHub(showToast = false) {
       saveActiveLicense(currentLicense);
       updateLicenseUI();
 
-      if (localUsed > remoteUsed) {
+      if (isSameSerial && localUsed > remoteUsed) {
         recordUserClick(currentLicense.username);
       }
       if (showToast) {
@@ -1249,4 +1255,22 @@ window.addEventListener('DOMContentLoaded', () => {
       openLicenseModal(false, 'App Activation Required', 'Please register with the Username and Serial Key provided by the developer.');
     }, 300);
   }
+
+  // Cross-device synchronization triggers:
+  // Re-sync quota automatically when user switches back to this tab / unlocks phone
+  window.addEventListener('focus', () => {
+    syncLatestQuotaFromGitHub(false);
+  });
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState === 'visible') {
+      syncLatestQuotaFromGitHub(false);
+    }
+  });
+  // Background periodic sync every 30 seconds
+  setInterval(() => {
+    if (document.visibilityState === 'visible') {
+      syncLatestQuotaFromGitHub(false);
+    }
+  }, 30000);
 });
+

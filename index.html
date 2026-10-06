@@ -545,6 +545,7 @@ button.outline:hover:not(:disabled) {
     min-width: 100% !important;
   }
 
+  #uan-pdf,
   #start-pdf,
   #end-pdf {
     font-size: 18px !important;
@@ -622,6 +623,12 @@ button.outline:hover:not(:disabled) {
 
   <div class="card">
     <div class="row">
+      <div class="field" style="flex: 1.2; min-width: 170px;">
+        <label for="uan-pdf">Enter UAN Number *</label>
+        <input type="text" id="uan-pdf" placeholder="e.g. 101234567890" style="font-family:var(--font-mono);font-weight:600;letter-spacing:1px;" autocomplete="off" spellcheck="false">
+        <div class="field-err-text" id="uan-err"></div>
+      </div>
+
       <div class="field">
         <div style="display: flex; justify-content: space-between; align-items: center;">
           <label for="start-pdf">Start serial number</label>

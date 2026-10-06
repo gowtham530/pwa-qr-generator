@@ -185,9 +185,8 @@ export async function loadDashboardData() {
       </td>
       <td>
         <div class="table-actions">
-          <button class="btn-action-small" onclick="window.addClicksToUser('${key}', 100)">+100 Clicks</button>
           <button class="btn-action-small" onclick="window.viewUserHistory('${key}')">📜 History</button>
-          <button class="btn-action-danger" onclick="window.deleteUser('${key}')">🗑️</button>
+          <button class="btn-action-danger" onclick="window.deleteUser('${key}')" title="Revoke User">🗑️ Revoke</button>
         </div>
       </td>
     `;
@@ -361,22 +360,6 @@ function setupSettingsModal() {
 }
 
 // Global actions for table
-window.addClicksToUser = async function(userKey, addAmount = 100) {
-  const confirmAdd = confirm(`Add ${addAmount} clicks to user "${userKey}"?`);
-  if (!confirmAdd) return;
-
-  const res = await fetchLicensesFromGitHub();
-  const licenses = res.data || { users: {} };
-  if (!licenses.users || !licenses.users[userKey]) return;
-
-  const u = licenses.users[userKey];
-  u.totalClicks = (u.totalClicks || 0) + addAmount;
-  u.remainingClicks = Math.max(0, u.totalClicks - (u.usedClicks || 0));
-
-  await pushLicensesToGitHub(licenses, `Add ${addAmount} clicks to ${u.username}`);
-  alert(`✅ Added ${addAmount} clicks! New total: ${u.totalClicks} clicks.`);
-  loadDashboardData();
-};
 
 window.deleteUser = async function(userKey) {
   const confirmDel = confirm(`Are you sure you want to revoke and delete user "${userKey}"?`);

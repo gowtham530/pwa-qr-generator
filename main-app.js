@@ -298,6 +298,43 @@ export function updateLicenseUI() {
   }
 }
 
+// Automatically sync latest quota from GitHub for active user
+export async function syncLatestQuotaFromGitHub(showToast = false) {
+  const currentLicense = getActiveLicense();
+  if (!currentLicense) return;
+
+  try {
+    const licRes = await fetchLicensesFromGitHub();
+    const licenses = licRes.data || { users: {} };
+    const users = licenses.users || {};
+
+    let matchedUser = users[currentLicense.username?.toLowerCase()];
+    if (!matchedUser && currentLicense.serialNumber) {
+      const foundKey = Object.keys(users).find(k => String(users[k].serial || '').trim() === String(currentLicense.serialNumber).trim());
+      if (foundKey) matchedUser = users[foundKey];
+    }
+
+    if (matchedUser) {
+      currentLicense.totalClicks = Number(matchedUser.totalClicks) || 100;
+      currentLicense.usedClicks = Number(matchedUser.usedClicks) || 0;
+      currentLicense.remainingClicks = Math.max(0, currentLicense.totalClicks - currentLicense.usedClicks);
+      if (matchedUser.serial) currentLicense.serialNumber = String(matchedUser.serial);
+      saveActiveLicense(currentLicense);
+      updateLicenseUI();
+      if (showToast) {
+        alert(`✅ Quota refreshed!\nTotal: ${currentLicense.totalClicks} clicks\nRemaining: ${currentLicense.remainingClicks} clicks left`);
+      }
+    } else if (showToast) {
+      alert(`Current quota: ${currentLicense.remainingClicks} / ${currentLicense.totalClicks} clicks`);
+    }
+  } catch (err) {
+    console.warn('Could not sync latest quota from GitHub:', err);
+    if (showToast) {
+      alert(`⚠️ Could not sync with server: ${err.message}`);
+    }
+  }
+}
+
 // User Registration with Developer Serial Key
 export async function activateLicense(username, serialKey) {
   const cleanUser = (username || '').trim();
@@ -318,9 +355,14 @@ export async function activateLicense(username, serialKey) {
     const normUser = cleanUser.toLowerCase();
 
     let matchedUser = users[normUser];
-    if (matchedUser && matchedUser.serial.toUpperCase() === cleanKey) {
-      const allowedClicks = matchedUser.totalClicks || 100;
-      const usedClicks = matchedUser.usedClicks || 0;
+    if (!matchedUser) {
+      const foundKey = Object.keys(users).find(k => String(users[k].serial || '').trim() === cleanKey);
+      if (foundKey) matchedUser = users[foundKey];
+    }
+
+    if (matchedUser && String(matchedUser.serial || '').trim() === cleanKey) {
+      const allowedClicks = Number(matchedUser.totalClicks) || 100;
+      const usedClicks = Number(matchedUser.usedClicks) || 0;
       const remainingClicks = Math.max(0, allowedClicks - usedClicks);
 
       const licenseRecord = {
@@ -340,10 +382,16 @@ export async function activateLicense(username, serialKey) {
 
   // Also check local licenses directly
   const localLics = getLocalLicenses();
-  const localMatch = localLics.users ? localLics.users[cleanUser.toLowerCase()] : null;
-  if (localMatch && localMatch.serial.toUpperCase() === cleanKey) {
-    const allowedClicks = localMatch.totalClicks || 100;
-    const usedClicks = localMatch.usedClicks || 0;
+  const localUsers = localLics.users || {};
+  let localMatch = localUsers[cleanUser.toLowerCase()];
+  if (!localMatch) {
+    const foundKey = Object.keys(localUsers).find(k => String(localUsers[k].serial || '').trim() === cleanKey);
+    if (foundKey) localMatch = localUsers[foundKey];
+  }
+
+  if (localMatch && String(localMatch.serial || '').trim() === cleanKey) {
+    const allowedClicks = Number(localMatch.totalClicks) || 100;
+    const usedClicks = Number(localMatch.usedClicks) || 0;
     const remainingClicks = Math.max(0, allowedClicks - usedClicks);
 
     const licenseRecord = {
@@ -913,9 +961,11 @@ window.autoFillEndSerial = autoFillEndSerial;
 window.toggleHistoryCollapse = toggleHistoryCollapse;
 window.clearUserHistory = clearUserHistory;
 window.exportHistoryCSV = exportHistoryCSV;
+window.syncLatestQuotaFromGitHub = syncLatestQuotaFromGitHub;
 
 window.addEventListener('DOMContentLoaded', () => {
   updateLicenseUI();
+  syncLatestQuotaFromGitHub(false);
   renderQRHistoryUI();
 
   // Attach 14-char listeners

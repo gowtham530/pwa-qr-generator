@@ -600,12 +600,15 @@ button.outline:hover:not(:disabled) {
         <span>👤 User:</span>
         <strong id="active-username-text">Unactivated</strong>
       </div>
-      <div class="quota-pill" id="quota-pill">
+      <div class="quota-pill" id="quota-pill" onclick="if(window.syncLatestQuotaFromGitHub) window.syncLatestQuotaFromGitHub(true)" style="cursor: pointer;" title="Click to refresh quota from server">
         <span>⚡ Clicks:</span>
         <strong id="active-quota-text">0 / 0</strong>
       </div>
     </div>
-    <button class="renew-btn" onclick="openLicenseModal(true)">🔑 Change / Renew Key</button>
+    <div style="display: flex; gap: 8px;">
+      <button class="renew-btn" onclick="if(window.syncLatestQuotaFromGitHub) window.syncLatestQuotaFromGitHub(true)" title="Refresh quota from server">🔄 Refresh</button>
+      <button class="renew-btn" onclick="openLicenseModal(true)">🔑 Change / Renew Key</button>
+    </div>
   </div>
 
   <h2>Generate Random Encrypted QR Codes PDF</h2>

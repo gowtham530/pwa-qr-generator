@@ -261,7 +261,11 @@ function setupGeneratorForm() {
       userField.value = '';
       clicksField.value = '100';
 
-      alert(`✅ Serial generated for ${username}!\nSerial: ${serial}\nQuota: ${clicks} clicks`);
+      if (pushRes && !pushRes.success) {
+        alert(`⚠️ User saved locally with ${clicks} clicks!\nSerial: ${serial}\n\nNotice: Could not sync to GitHub remote (${pushRes.error}). Please verify your token in GitHub Settings.`);
+      } else {
+        alert(`✅ Serial generated for ${username}!\nSerial: ${serial}\nQuota: ${clicks} clicks\n\nSuccessfully synced to GitHub!`);
+      }
     } catch (err) {
       alert('Error generating serial: ' + err.message);
     } finally {

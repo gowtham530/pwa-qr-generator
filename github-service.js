@@ -67,6 +67,34 @@ export function saveLocalLicenses(data) {
   localStorage.setItem(LICENSES_CACHE_KEY, JSON.stringify(data));
 }
 
+// Merge remote licenses with local cache to avoid ever wiping out users
+function mergeLicenses(remoteData) {
+  const local = getLocalLicenses();
+  const remoteUsers = remoteData?.users || {};
+  const localUsers = local?.users || {};
+
+  // Combine both sets of users
+  const mergedUsers = { ...localUsers, ...remoteUsers };
+
+  for (const k of Object.keys(mergedUsers)) {
+    if (localUsers[k] && remoteUsers[k]) {
+      const uLoc = localUsers[k];
+      const uRem = remoteUsers[k];
+      mergedUsers[k] = {
+        ...uLoc,
+        ...uRem,
+        totalClicks: uRem.totalClicks || uLoc.totalClicks || 100,
+        usedClicks: Math.max(uRem.usedClicks || 0, uLoc.usedClicks || 0),
+        remainingClicks: Math.max(0, (uRem.totalClicks || uLoc.totalClicks || 100) - Math.max(uRem.usedClicks || 0, uLoc.usedClicks || 0)),
+      };
+    }
+  }
+
+  const result = { ...(remoteData || {}), users: mergedUsers };
+  saveLocalLicenses(result);
+  return result;
+}
+
 // Fetch licenses from GitHub (multi-device compatible, works with or without token)
 export async function fetchLicensesFromGitHub() {
   await ensureConfigLoaded();
@@ -90,15 +118,15 @@ export async function fetchLicensesFromGitHub() {
       });
 
       if (res.status === 404) {
-        return { success: true, data: { users: {} }, sha: null, source: 'github_new' };
+        return { success: true, data: getLocalLicenses(), sha: null, source: 'github_new' };
       }
 
       if (res.ok) {
         const json = await res.json();
         const content = decodeBase64Utf8(json.content);
         const parsedData = JSON.parse(content || '{"users":{}}');
-        saveLocalLicenses(parsedData);
-        return { success: true, data: parsedData, sha: json.sha, source: 'github' };
+        const merged = mergeLicenses(parsedData);
+        return { success: true, data: merged, sha: json.sha, source: 'github' };
       }
     } catch (err) {
       console.warn('Authenticated fetch failed, attempting raw fetch fallback:', err);
@@ -111,8 +139,8 @@ export async function fetchLicensesFromGitHub() {
     const res = await fetch(rawUrl, { cache: 'no-store' });
     if (res.ok) {
       const parsedData = await res.json();
-      saveLocalLicenses(parsedData);
-      return { success: true, data: parsedData, source: 'github_public' };
+      const merged = mergeLicenses(parsedData);
+      return { success: true, data: merged, source: 'github_public' };
     }
   } catch (e) {
     console.warn('Raw GitHub fetch failed, using local cache:', e);

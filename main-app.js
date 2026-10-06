@@ -22,6 +22,7 @@ const QR_IV_HEX  = 'ffeffaefefefefc5a7efef9c';
 // Storage keys
 const LICENSE_STORAGE_KEY = 'qr_app_active_license_v2';
 const HISTORY_STORAGE_KEY = 'qr_app_daywise_history_v1';
+const PERM_REGISTRY_KEY   = 'qr_app_permanent_registry_v1';
 
 // -----------------------------------------------------------
 // Helpers: Hex <--> Bytes
@@ -520,26 +521,99 @@ export async function submitActivation() {
 }
 
 // ============================================================
-//  4. Day-Wise QR Generation History (Requirement 10)
+//  4. Day-Wise QR Generation History & Permanent Duplicate Registry
 // ============================================================
+// Retrieve all generated records across:
+// 1. Permanent duplicate ledger (never cleared when user clears on-screen history)
+// 2. Visible UI history
+// 3. User history synced in GitHub / local license cache (multi-device)
+export function getAllGeneratedRecords() {
+  const map = new Map();
+
+  function addRecord(item) {
+    if (!item) return;
+    let s = (item.startSerial || '').trim().toUpperCase();
+    let e = (item.endSerial || '').trim().toUpperCase();
+    if (s && e) {
+      const sp = parseSerial(s);
+      const ep = parseSerial(e);
+      if (sp && ep && sp.prefix === ep.prefix) {
+        try {
+          if (BigInt(sp.num) > BigInt(ep.num)) {
+            const tmp = s; s = e; e = tmp;
+          }
+        } catch (err) {}
+      }
+    }
+    const key = `${(item.uan || '').trim().toLowerCase()}_${s}_${e}`;
+    if (!map.has(key)) {
+      map.set(key, { ...item, startSerial: s, endSerial: e });
+    }
+  }
+
+  // 1. Permanent local ledger
+  try {
+    const rawPerm = localStorage.getItem(PERM_REGISTRY_KEY);
+    if (rawPerm) {
+      const permList = JSON.parse(rawPerm);
+      if (Array.isArray(permList)) permList.forEach(addRecord);
+    }
+  } catch (e) {}
+
+  // 2. Visible UI history
+  try {
+    const rawUi = localStorage.getItem(HISTORY_STORAGE_KEY);
+    if (rawUi) {
+      const uiList = JSON.parse(rawUi);
+      if (Array.isArray(uiList)) uiList.forEach(addRecord);
+    }
+  } catch (e) {}
+
+  // 3. Synced GitHub / local license users history (multi-device)
+  try {
+    const licData = getLocalLicenses();
+    if (licData && licData.users) {
+      Object.values(licData.users).forEach(u => {
+        if (Array.isArray(u.history)) {
+          u.history.forEach(h => {
+            if (h) {
+              addRecord({
+                uan: h.uan,
+                startSerial: h.startSerial,
+                endSerial: h.endSerial,
+                count: h.count,
+                dateFormatted: h.date || 'Previous session',
+                timeFormatted: h.time || '',
+                username: u.username || 'User'
+              });
+            }
+          });
+        }
+      });
+    }
+  } catch (e) {}
+
+  return Array.from(map.values());
+}
+
 // Duplicate checkers for UAN and Serial numbers
 export function checkDuplicateUAN(uan) {
   if (!uan) return null;
-  const history = getQRHistory();
+  const records = getAllGeneratedRecords();
   const clean = uan.trim().toLowerCase();
-  return history.find(h => (h.uan || '').trim().toLowerCase() === clean);
+  return records.find(h => (h.uan || '').trim().toLowerCase() === clean);
 }
 
 export function checkDuplicateSerial(startSerial, endSerial) {
   if (!startSerial) return null;
-  const history = getQRHistory();
+  const records = getAllGeneratedRecords();
   const sNorm = startSerial.trim().toUpperCase();
   const eNorm = (endSerial || '').trim().toUpperCase();
 
   const sp = parseSerial(sNorm);
   const ep = parseSerial(eNorm);
 
-  for (const h of history) {
+  for (const h of records) {
     if (sp && ep && h.startSerial && h.endSerial) {
       const hsp = parseSerial(h.startSerial);
       const hep = parseSerial(h.endSerial);
@@ -608,6 +682,16 @@ export function saveQRHistoryBatch(batchRecord) {
   // Cap at 500 records
   if (history.length > 500) history.length = 500;
   localStorage.setItem(HISTORY_STORAGE_KEY, JSON.stringify(history));
+
+  // Permanently record in duplicate ledger (NEVER deleted when user clears on-screen history)
+  try {
+    const rawPerm = localStorage.getItem(PERM_REGISTRY_KEY);
+    const permList = rawPerm ? JSON.parse(rawPerm) : [];
+    permList.unshift(batchRecord);
+    if (permList.length > 10000) permList.length = 10000;
+    localStorage.setItem(PERM_REGISTRY_KEY, JSON.stringify(permList));
+  } catch (e) {}
+
   renderQRHistoryUI();
 }
 
@@ -713,7 +797,7 @@ export function toggleHistoryCollapse() {
 }
 
 export function clearUserHistory() {
-  if (confirm('Are you sure you want to clear your local QR generation history?')) {
+  if (confirm('Clear on-screen generation history display?\n\nNote: Duplicate protection will remain active so previously generated UANs and serial numbers can never be duplicated.')) {
     localStorage.removeItem(HISTORY_STORAGE_KEY);
     renderQRHistoryUI();
   }

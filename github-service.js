@@ -8,8 +8,8 @@ const LICENSES_CACHE_KEY = 'qr_app_licenses_cache_v1';
 
 // Default configuration fallback
 const DEFAULT_CONFIG = {
-  owner: '',
-  repo: '',
+  owner: 'gowtham530',
+  repo: 'pwa-qr-generator',
   branch: 'main',
   token: '',
   filePath: 'licenses.json'
@@ -21,17 +21,19 @@ export async function ensureConfigLoaded() {
   if (externalConfigAttempted) return getGitHubConfig();
   externalConfigAttempted = true;
   try {
-    const res = await fetch('./github-config.json');
+    const res = await fetch('./github-config.json', { cache: 'no-store' });
     if (res.ok) {
       const extCfg = await res.json();
       const current = getGitHubConfig();
-      if (!current.owner && extCfg.owner) {
-        const merged = { ...DEFAULT_CONFIG, ...extCfg, ...current };
-        if (!merged.owner) merged.owner = extCfg.owner;
-        if (!merged.repo) merged.repo = extCfg.repo;
-        saveGitHubConfig(merged);
-        return merged;
-      }
+      const merged = {
+        owner: current.owner || extCfg.owner || 'gowtham530',
+        repo: current.repo || extCfg.repo || 'pwa-qr-generator',
+        branch: current.branch || extCfg.branch || 'main',
+        token: current.token || extCfg.token || '',
+        filePath: current.filePath || extCfg.filePath || 'licenses.json'
+      };
+      saveGitHubConfig(merged);
+      return merged;
     }
   } catch (e) {
     // Offline or file not accessible
@@ -157,7 +159,7 @@ export async function pushLicensesToGitHub(licensesData, commitMessage = 'Update
   saveLocalLicenses(licensesData);
 
   if (!config.owner || !config.repo || !config.token) {
-    return { success: true, message: 'Saved locally (GitHub Token required to push to remote)', source: 'local' };
+    return { success: false, error: 'GitHub Token required to sync quota across devices. Saved locally on this device.', source: 'local' };
   }
 
   // First fetch latest SHA

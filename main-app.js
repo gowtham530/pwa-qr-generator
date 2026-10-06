@@ -316,12 +316,21 @@ export async function syncLatestQuotaFromGitHub(showToast = false) {
     }
 
     if (matchedUser) {
-      currentLicense.totalClicks = Number(matchedUser.totalClicks) || 100;
-      currentLicense.usedClicks = Number(matchedUser.usedClicks) || 0;
-      currentLicense.remainingClicks = Math.max(0, currentLicense.totalClicks - currentLicense.usedClicks);
+      const remoteTotal = Number(matchedUser.totalClicks) || 100;
+      const remoteUsed = Number(matchedUser.usedClicks) || 0;
+      const localUsed = Number(currentLicense.usedClicks) || 0;
+      const effectiveUsed = Math.max(remoteUsed, localUsed);
+
+      currentLicense.totalClicks = remoteTotal;
+      currentLicense.usedClicks = effectiveUsed;
+      currentLicense.remainingClicks = Math.max(0, remoteTotal - effectiveUsed);
       if (matchedUser.serial) currentLicense.serialNumber = String(matchedUser.serial);
       saveActiveLicense(currentLicense);
       updateLicenseUI();
+
+      if (localUsed > remoteUsed) {
+        recordUserClick(currentLicense.username);
+      }
       if (showToast) {
         alert(`✅ Quota refreshed!\nTotal: ${currentLicense.totalClicks} clicks\nRemaining: ${currentLicense.remainingClicks} clicks left`);
       }

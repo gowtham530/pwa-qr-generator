@@ -1,0 +1,29 @@
+[build]
+  command = "npm run build"
+  publish = "www"
+
+# SPA Fallback: Direct all routes to index.html for PWA navigation
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200
+
+# Cache rules for Service Worker: Never cache sw.js so PWA updates immediately
+[[headers]]
+  for = "/sw.js"
+  [headers.values]
+    Cache-Control = "no-cache, no-store, must-revalidate"
+    Service-Worker-Allowed = "/"
+
+# Cache rules for Web App Manifest
+[[headers]]
+  for = "/manifest.json"
+  [headers.values]
+    Content-Type = "application/manifest+json"
+    Cache-Control = "no-cache, no-store, must-revalidate"
+
+# Cache rules for static assets (hashed JS/CSS)
+[[headers]]
+  for = "/assets/*"
+  [headers.values]
+    Cache-Control = "public, max-age=31536000, immutable"

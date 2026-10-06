@@ -1,0 +1,568 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>Developer Serial Control & Click Monitor</title>
+<link rel="icon" type="image/svg+xml" href="./icon.svg">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+<script type="module" src="./dev-generator.js"></script>
+<style>
+:root {
+  --color-bg-base: #090d16;
+  --color-bg-glass: rgba(15, 23, 42, 0.75);
+  --color-border-glass: rgba(148, 163, 184, 0.15);
+  --color-text-primary: #f8fafc;
+  --color-text-secondary: #94a3b8;
+  --color-accent-1: #38bdf8;
+  --color-accent-2: #818cf8;
+  --color-danger: #f43f5e;
+  --color-success: #10b981;
+  --color-warning: #f59e0b;
+  --font-main: 'Outfit', sans-serif;
+  --font-mono: 'JetBrains Mono', monospace;
+}
+
+body {
+  font-family: var(--font-main);
+  background: radial-gradient(circle at top, #1e1b4b 0%, #090d16 60%, #030712 100%);
+  background-attachment: fixed;
+  color: var(--color-text-primary);
+  margin: 0;
+  padding: 24px 16px;
+  min-height: 100vh;
+  box-sizing: border-box;
+}
+
+.container {
+  max-width: 1050px;
+  margin: 0 auto;
+}
+
+/* Header */
+.top-nav {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 24px;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.nav-brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.nav-brand h1 {
+  font-size: 22px;
+  font-weight: 700;
+  margin: 0;
+  background: linear-gradient(135deg, #38bdf8, #818cf8);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+.nav-actions {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+/* Buttons */
+button {
+  font-family: var(--font-main);
+  cursor: pointer;
+  font-weight: 600;
+  border-radius: 8px;
+  border: none;
+  padding: 8px 16px;
+  font-size: 14px;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  transition: all 0.2s;
+}
+
+.btn-primary {
+  background: linear-gradient(135deg, #38bdf8, #818cf8);
+  color: #030712;
+  font-weight: 700;
+  box-shadow: 0 4px 14px rgba(56, 189, 248, 0.3);
+}
+.btn-primary:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 6px 20px rgba(56, 189, 248, 0.4);
+}
+
+.btn-secondary {
+  background: rgba(30, 41, 59, 0.8);
+  border: 1px solid var(--color-border-glass);
+  color: var(--color-text-primary);
+}
+.btn-secondary:hover {
+  background: rgba(51, 65, 85, 0.8);
+}
+
+.btn-outline {
+  background: transparent;
+  border: 1px solid rgba(56, 189, 248, 0.4);
+  color: #38bdf8;
+}
+.btn-outline:hover {
+  background: rgba(56, 189, 248, 0.1);
+}
+
+/* Stats Row */
+.stats-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 14px;
+  margin-bottom: 24px;
+}
+
+.stat-card {
+  background: var(--color-bg-glass);
+  backdrop-filter: blur(12px);
+  border: 1px solid var(--color-border-glass);
+  border-radius: 12px;
+  padding: 16px 20px;
+  display: flex;
+  flex-direction: column;
+}
+
+.stat-label {
+  font-size: 13px;
+  color: var(--color-text-secondary);
+  font-weight: 500;
+  margin-bottom: 4px;
+}
+
+.stat-value {
+  font-size: 26px;
+  font-weight: 700;
+  color: #fff;
+  font-family: var(--font-mono);
+}
+
+/* Cards */
+.card {
+  background: var(--color-bg-glass);
+  backdrop-filter: blur(16px);
+  border: 1px solid var(--color-border-glass);
+  border-radius: 16px;
+  padding: 24px;
+  margin-bottom: 24px;
+  box-shadow: 0 20px 40px -15px rgba(0, 0, 0, 0.5);
+}
+
+.card-title {
+  font-size: 18px;
+  font-weight: 600;
+  margin: 0 0 16px 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+/* Forms */
+.form-grid {
+  display: grid;
+  grid-template-columns: 2fr 1fr auto;
+  gap: 14px;
+  align-items: flex-end;
+}
+
+@media (max-width: 768px) {
+  .form-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.form-group {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+label {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--color-text-secondary);
+}
+
+input {
+  font-family: var(--font-main);
+  background: rgba(0, 0, 0, 0.4);
+  border: 1px solid var(--color-border-glass);
+  border-radius: 8px;
+  padding: 10px 14px;
+  color: #fff;
+  font-size: 14px;
+  outline: none;
+}
+input:focus {
+  border-color: var(--color-accent-1);
+  box-shadow: 0 0 0 2px rgba(56, 189, 248, 0.2);
+}
+
+/* Result Card */
+.result-box {
+  background: rgba(16, 185, 129, 0.1);
+  border: 1px solid rgba(16, 185, 129, 0.3);
+  border-radius: 12px;
+  padding: 16px 20px;
+  margin-top: 16px;
+  display: none;
+}
+
+.result-content {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+.serial-display {
+  font-family: var(--font-mono);
+  font-size: 22px;
+  font-weight: 700;
+  color: #34d399;
+  letter-spacing: 2px;
+}
+
+/* Table */
+.table-wrapper {
+  overflow-x: auto;
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+  text-align: left;
+}
+
+th {
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--color-text-secondary);
+  padding: 12px 14px;
+  border-bottom: 1px solid var(--color-border-glass);
+}
+
+td {
+  padding: 14px;
+  border-bottom: 1px solid rgba(148, 163, 184, 0.08);
+  font-size: 14px;
+  vertical-align: middle;
+}
+
+tr:hover td {
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.badge {
+  display: inline-block;
+  padding: 4px 10px;
+  border-radius: 9999px;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.badge-active {
+  background: rgba(16, 185, 129, 0.15);
+  color: #34d399;
+  border: 1px solid rgba(16, 185, 129, 0.3);
+}
+
+.badge-low {
+  background: rgba(245, 158, 11, 0.15);
+  color: #fbbf24;
+  border: 1px solid rgba(245, 158, 11, 0.3);
+}
+
+.badge-exhausted {
+  background: rgba(244, 63, 94, 0.15);
+  color: #fb7185;
+  border: 1px solid rgba(244, 63, 94, 0.3);
+}
+
+.progress-mini {
+  width: 100px;
+  height: 5px;
+  background: rgba(255, 255, 255, 0.1);
+  border-radius: 3px;
+  margin-top: 4px;
+  overflow: hidden;
+}
+
+.progress-mini-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #38bdf8, #f43f5e);
+}
+
+.table-actions {
+  display: flex;
+  gap: 6px;
+}
+
+.btn-action-small {
+  padding: 5px 9px;
+  font-size: 12px;
+  border-radius: 6px;
+  background: rgba(56, 189, 248, 0.12);
+  color: #38bdf8;
+  border: 1px solid rgba(56, 189, 248, 0.25);
+}
+.btn-action-small:hover {
+  background: rgba(56, 189, 248, 0.25);
+}
+
+.btn-action-danger {
+  padding: 5px 9px;
+  font-size: 12px;
+  border-radius: 6px;
+  background: rgba(244, 63, 94, 0.12);
+  color: #fb7185;
+  border: 1px solid rgba(244, 63, 94, 0.25);
+}
+.btn-action-danger:hover {
+  background: rgba(244, 63, 94, 0.25);
+}
+
+.copy-small-btn {
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  padding: 2px 4px;
+  font-size: 13px;
+}
+
+/* Auth Overlay */
+.auth-overlay {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 80vh;
+}
+
+.auth-card {
+  width: 100%;
+  max-width: 420px;
+  background: var(--color-bg-glass);
+  backdrop-filter: blur(20px);
+  border: 1px solid var(--color-border-glass);
+  border-radius: 20px;
+  padding: 32px;
+  box-shadow: 0 25px 60px -15px rgba(0,0,0,0.8);
+  text-align: center;
+}
+
+/* Modal */
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.8);
+  backdrop-filter: blur(8px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  z-index: 1000;
+}
+
+.modal-box {
+  width: 100%;
+  max-width: 520px;
+  background: #0f172a;
+  border: 1px solid var(--color-border-glass);
+  border-radius: 16px;
+  padding: 24px;
+  box-shadow: 0 25px 60px -15px rgba(0,0,0,0.9);
+}
+</style>
+</head>
+<body>
+
+<div class="container">
+
+  <!-- DEVELOPER LOGIN FORM (DEFAULT) -->
+  <div id="dev-auth-section" class="auth-overlay">
+    <div class="auth-card">
+      <div style="font-size: 48px; margin-bottom: 12px;">🔐</div>
+      <h2 style="margin: 0 0 8px 0; font-size: 24px;">Developer Portal</h2>
+      <p style="color: var(--color-text-secondary); font-size: 14px; margin-bottom: 24px;">
+        Restricted to Developer only. Please enter master passcode to access Serial Generator & Click Monitor.
+      </p>
+
+      <div style="display: flex; flex-direction: column; gap: 14px;">
+        <input type="password" id="dev-passcode-input" placeholder="Developer Passcode" style="font-size: 16px; padding: 12px 14px; text-align: center; letter-spacing: 2px;" autocomplete="current-password" />
+        <div id="dev-auth-err" style="color: var(--color-danger); font-size: 13px; min-height: 18px;"></div>
+        <button id="dev-btn-login" class="btn-primary" style="height: 44px; justify-content: center; font-size: 15px;">🔓 Unlock Developer Dashboard</button>
+      </div>
+      <div style="margin-top: 20px; font-size: 12px; color: #64748b;">
+        <a href="./index.html" style="color: var(--color-accent-1); text-decoration: none;">&larr; Back to QR Generator App</a>
+      </div>
+    </div>
+  </div>
+
+  <!-- MAIN DEVELOPER DASHBOARD (AUTHENTICATED) -->
+  <div id="dev-main-section" style="display: none;">
+    <div class="top-nav">
+      <div class="nav-brand">
+        <span style="font-size: 26px;">⚡</span>
+        <div>
+          <h1>Developer Serial & Clicks Controller</h1>
+          <div style="font-size: 12px; color: var(--color-text-secondary);">Master Quota Engine & GitHub Sync</div>
+        </div>
+      </div>
+      <div class="nav-actions">
+        <button id="btn-open-settings" class="btn-secondary">⚙️ GitHub Settings</button>
+        <button onclick="window.recheckGitHubClicks()" class="btn-outline">🔄 Recheck Clicks</button>
+        <a href="./index.html" class="btn-secondary" style="text-decoration:none;">📱 User App</a>
+        <button onclick="window.logoutDeveloper()" class="btn-secondary" style="color:#fb7185;">Logout</button>
+      </div>
+    </div>
+
+    <!-- Quick Stats -->
+    <div class="stats-grid">
+      <div class="stat-card">
+        <span class="stat-label">👥 Total Registered Users</span>
+        <span class="stat-value" id="stat-total-users">0</span>
+      </div>
+      <div class="stat-card">
+        <span class="stat-label">⚡ Total Clicks Issued</span>
+        <span class="stat-value" id="stat-total-clicks" style="color: #38bdf8;">0</span>
+      </div>
+      <div class="stat-card">
+        <span class="stat-label">🔥 Clicks Used by Users</span>
+        <span class="stat-value" id="stat-total-used" style="color: #f43f5e;">0</span>
+      </div>
+      <div class="stat-card">
+        <span class="stat-label">📡 Sync Status</span>
+        <span id="sync-status-indicator" style="font-size: 13px; font-weight: 600; color: #38bdf8; margin-top: 8px;">🔄 Initializing...</span>
+      </div>
+    </div>
+
+    <!-- GENERATOR CARD -->
+    <div class="card">
+      <div class="card-title">
+        <span>🔑 Generate New User Serial Key</span>
+        <span style="font-size: 12px; font-weight: 400; color: #94a3b8;">Format: 14 chars starting with AP25R</span>
+      </div>
+
+      <form id="generator-form">
+        <div class="form-grid">
+          <div class="form-group">
+            <label for="gen-username">Client / Username *</label>
+            <input type="text" id="gen-username" placeholder="e.g. Gowtham" required autocomplete="off" />
+          </div>
+          <div class="form-group">
+            <label for="gen-clicks">Click Quota (Default 100) *</label>
+            <input type="number" id="gen-clicks" value="100" min="1" max="99999" required />
+          </div>
+          <div>
+            <button type="submit" id="gen-btn-submit" class="btn-primary" style="height: 42px; width: 100%;">
+              ⚡ Generate Serial & Push to GitHub
+            </button>
+          </div>
+        </div>
+      </form>
+
+      <!-- Result Card -->
+      <div id="gen-result-card" class="result-box">
+        <div class="result-content">
+          <div>
+            <div style="font-size: 12px; color: #10b981; font-weight: 600; text-transform: uppercase;">Generated Activation Serial:</div>
+            <div class="serial-display" id="generated-serial-val">AP25R000000000</div>
+            <div style="font-size: 13px; color: #cbd5e1; margin-top: 4px;">
+              Assigned to: <strong id="generated-user-val" style="color:#fff;">-</strong> | 
+              Quota: <strong id="generated-clicks-val" style="color:#38bdf8;">100 clicks</strong>
+            </div>
+          </div>
+          <button id="btn-copy-generated" class="btn-primary">📋 Copy Serial</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- MONITOR TABLE CARD -->
+    <div class="card">
+      <div class="card-title">
+        <span>📊 User Quota & Real-Time Click Usage</span>
+        <button onclick="window.recheckGitHubClicks()" class="btn-action-small">🔄 Refresh from GitHub</button>
+      </div>
+
+      <div class="table-wrapper">
+        <table>
+          <thead>
+            <tr>
+              <th>User</th>
+              <th>Serial Key</th>
+              <th>Issued</th>
+              <th>Clicks Used</th>
+              <th>Remaining</th>
+              <th>Last Active</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody id="users-table-body">
+            <tr>
+              <td colspan="7" style="text-align: center; padding: 24px; color: #94a3b8;">Loading user licenses...</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- GITHUB CONFIG SETTINGS MODAL -->
+  <div id="settings-modal" class="modal-overlay" style="display: none;">
+    <div class="modal-box">
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 16px;">
+        <h3 style="margin: 0; font-size: 18px;">⚙️ GitHub Sync Configuration</h3>
+        <button id="btn-close-settings" style="background:transparent; border:none; color:#94a3b8; font-size:20px; cursor:pointer;">✕</button>
+      </div>
+      <p style="font-size: 13px; color: #94a3b8; margin-bottom: 20px;">
+        Connect to your GitHub repository so serials and user clicks are saved and retrieved in real-time.
+      </p>
+
+      <div style="display: flex; flex-direction: column; gap: 14px;">
+        <div class="form-group">
+          <label for="setting-owner">GitHub Owner / Username *</label>
+          <input type="text" id="setting-owner" placeholder="e.g. gowtham530" autocomplete="off" />
+        </div>
+        <div class="form-group">
+          <label for="setting-repo">Repository Name *</label>
+          <input type="text" id="setting-repo" placeholder="e.g. PWA-QR-Generator" autocomplete="off" />
+        </div>
+        <div class="form-group">
+          <label for="setting-branch">Branch (Default: main)</label>
+          <input type="text" id="setting-branch" value="main" />
+        </div>
+        <div class="form-group">
+          <label for="setting-token">GitHub Personal Access Token (PAT) *</label>
+          <input type="password" id="setting-token" placeholder="ghp_... (Needs repo / Contents read & write)" autocomplete="off" />
+          <div style="font-size: 11px; color: #64748b; margin-top: 2px;">
+            Token is stored securely only in your browser's localStorage.
+          </div>
+        </div>
+
+        <div id="test-github-msg" style="font-size: 13px; min-height: 18px;"></div>
+
+        <div style="display: flex; gap: 10px; margin-top: 8px;">
+          <button id="btn-test-github" class="btn-outline" style="flex:1;">🔌 Test Connection</button>
+          <button id="btn-save-settings" class="btn-primary" style="flex:1;">💾 Save Settings</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+</body>
+</html>

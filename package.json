@@ -1,0 +1,34 @@
+{
+  "name": "qr-genreator",
+  "version": "1.0.0",
+  "description": "",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "build:web": "vite build",
+    "preview": "vite preview --host 0.0.0.0 --port 5173",
+    "build:ios": "vite build && cap sync ios",
+    "sync:ios": "cap sync ios",
+    "build:android": "vite build && cap sync android",
+    "sync:android": "cap sync android"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "devDependencies": {
+    "vite": "^8.0.16"
+  },
+  "dependencies": {
+    "@capacitor/android": "^8.4.1",
+    "@capacitor/cli": "^8.4.1",
+    "@capacitor/core": "^8.4.1",
+    "@capacitor/filesystem": "^8.1.2",
+    "@capacitor/ios": "^8.5.1",
+    "@capacitor/share": "^8.0.1",
+    "@noble/ciphers": "^2.4.0",
+    "@noble/hashes": "^2.4.0",
+    "jspdf": "^4.2.1",
+    "qrcode": "^1.5.4"
+  }
+}

@@ -358,8 +358,8 @@ export async function activateLicense(username, serialKey) {
     return { success: true, license: licenseRecord };
   }
 
-  // If serial starts with AP25R and is 14 chars, allow standard 100 clicks activation
-  if (cleanKey.startsWith('AP25R') && cleanKey.length === 14) {
+  // If serial is 10-digit numeric key, allow standard 100 clicks activation if valid
+  if (/^\d{10}$/.test(cleanKey)) {
     const licenseRecord = {
       username: cleanUser,
       totalClicks: 100,
@@ -372,7 +372,7 @@ export async function activateLicense(username, serialKey) {
     return { success: true, license: licenseRecord };
   }
 
-  return { success: false, error: '❌ Invalid Serial Key or Username mismatch. Please check with the Developer.' };
+  return { success: false, error: '❌ Invalid 10-digit serial number or Username mismatch. Please check with Developer.' };
 }
 
 // Click Quota Deductor: Consumes 1 Click per PDF generation tap

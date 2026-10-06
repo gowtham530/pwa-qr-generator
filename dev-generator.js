@@ -21,18 +21,14 @@ function setDeveloperAuthenticated(val) {
   else sessionStorage.removeItem(DEV_AUTH_KEY);
 }
 
-// Generate unique 14-char serial starting with AP25R
-// Format: AP25R (5 chars) + 9 chars = exactly 14 characters
-export function generate14CharSerial() {
-  const chars = '0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ';
-  let randomPart = '';
-  // Cryptographically random characters
-  const randomBytes = new Uint8Array(9);
-  crypto.getRandomValues(randomBytes);
-  for (let i = 0; i < 9; i++) {
-    randomPart += chars[randomBytes[i] % chars.length];
-  }
-  return `AP25R${randomPart}`;
+// Generate unique 10-digit numeric serial key (numbers only)
+export function generate10DigitSerial() {
+  // Generate cryptographically secure random 10-digit number (1000000000 to 9999999999)
+  const array = new Uint32Array(2);
+  crypto.getRandomValues(array);
+  const bigVal = (BigInt(array[0]) << 32n) | BigInt(array[1]);
+  const tenDigitNum = 1000000000n + (bigVal % 9000000000n);
+  return tenDigitNum.toString();
 }
 
 // Format date nicely
@@ -229,7 +225,7 @@ function setupGeneratorForm() {
     btnSubmit.textContent = '⏳ Generating & Syncing to GitHub...';
 
     try {
-      const serial = generate14CharSerial();
+      const serial = generate10DigitSerial();
       const normKey = username.toLowerCase();
 
       // Fetch latest licenses

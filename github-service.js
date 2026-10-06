@@ -15,6 +15,30 @@ const DEFAULT_CONFIG = {
   filePath: 'licenses.json'
 };
 
+let externalConfigAttempted = false;
+
+export async function ensureConfigLoaded() {
+  if (externalConfigAttempted) return getGitHubConfig();
+  externalConfigAttempted = true;
+  try {
+    const res = await fetch('./github-config.json');
+    if (res.ok) {
+      const extCfg = await res.json();
+      const current = getGitHubConfig();
+      if (!current.owner && extCfg.owner) {
+        const merged = { ...DEFAULT_CONFIG, ...extCfg, ...current };
+        if (!merged.owner) merged.owner = extCfg.owner;
+        if (!merged.repo) merged.repo = extCfg.repo;
+        saveGitHubConfig(merged);
+        return merged;
+      }
+    }
+  } catch (e) {
+    // Offline or file not accessible
+  }
+  return getGitHubConfig();
+}
+
 export function getGitHubConfig() {
   try {
     const raw = localStorage.getItem(GITHUB_CONFIG_STORAGE_KEY);
@@ -43,55 +67,69 @@ export function saveLocalLicenses(data) {
   localStorage.setItem(LICENSES_CACHE_KEY, JSON.stringify(data));
 }
 
-// Fetch licenses from GitHub (or local cache if not configured / offline)
+// Fetch licenses from GitHub (multi-device compatible, works with or without token)
 export async function fetchLicensesFromGitHub() {
+  await ensureConfigLoaded();
   const config = getGitHubConfig();
-  if (!config.owner || !config.repo || !config.token) {
-    // If GitHub credentials are not configured, return local cache
+
+  if (!config.owner || !config.repo) {
+    // Neither owner nor repo configured, return local cache
     return { success: true, data: getLocalLicenses(), source: 'local' };
   }
 
-  const url = `https://api.github.com/repos/${config.owner}/${config.repo}/contents/${config.filePath}?ref=${config.branch}`;
-  try {
-    const res = await fetch(url, {
-      headers: {
-        'Accept': 'application/vnd.github.v3+json',
-        'Authorization': `Bearer ${config.token}`,
-        'Cache-Control': 'no-cache'
+  // 1. If Token is present, use authenticated GitHub Contents API
+  if (config.token) {
+    const url = `https://api.github.com/repos/${config.owner}/${config.repo}/contents/${config.filePath}?ref=${config.branch}`;
+    try {
+      const res = await fetch(url, {
+        headers: {
+          'Accept': 'application/vnd.github.v3+json',
+          'Authorization': `Bearer ${config.token}`,
+          'Cache-Control': 'no-cache'
+        }
+      });
+
+      if (res.status === 404) {
+        return { success: true, data: { users: {} }, sha: null, source: 'github_new' };
       }
-    });
 
-    if (res.status === 404) {
-      // File doesn't exist yet on GitHub, return empty licenses and save SHA as null
-      return { success: true, data: { users: {} }, sha: null, source: 'github_new' };
+      if (res.ok) {
+        const json = await res.json();
+        const content = decodeBase64Utf8(json.content);
+        const parsedData = JSON.parse(content || '{"users":{}}');
+        saveLocalLicenses(parsedData);
+        return { success: true, data: parsedData, sha: json.sha, source: 'github' };
+      }
+    } catch (err) {
+      console.warn('Authenticated fetch failed, attempting raw fetch fallback:', err);
     }
-
-    if (!res.ok) {
-      const errText = await res.text();
-      return { success: false, error: `GitHub API error (${res.status}): ${errText}`, data: getLocalLicenses(), source: 'local_fallback' };
-    }
-
-    const json = await res.json();
-    const content = decodeBase64Utf8(json.content);
-    const parsedData = JSON.parse(content || '{"users":{}}');
-    
-    // Cache locally
-    saveLocalLicenses(parsedData);
-    return { success: true, data: parsedData, sha: json.sha, source: 'github' };
-  } catch (err) {
-    console.warn('Network error fetching from GitHub, falling back to local cache:', err);
-    return { success: false, error: err.message, data: getLocalLicenses(), source: 'local_fallback' };
   }
+
+  // 2. Multi-device Public Fallback: Fetch directly from raw.githubusercontent.com
+  const rawUrl = `https://raw.githubusercontent.com/${config.owner}/${config.repo}/${config.branch}/${config.filePath}?t=${Date.now()}`;
+  try {
+    const res = await fetch(rawUrl, { cache: 'no-store' });
+    if (res.ok) {
+      const parsedData = await res.json();
+      saveLocalLicenses(parsedData);
+      return { success: true, data: parsedData, source: 'github_public' };
+    }
+  } catch (e) {
+    console.warn('Raw GitHub fetch failed, using local cache:', e);
+  }
+
+  return { success: true, data: getLocalLicenses(), source: 'local_fallback' };
 }
 
 // Push updated licenses to GitHub
 export async function pushLicensesToGitHub(licensesData, commitMessage = 'Update serial licenses and click counts') {
+  await ensureConfigLoaded();
   const config = getGitHubConfig();
   // Always update local cache first
   saveLocalLicenses(licensesData);
 
   if (!config.owner || !config.repo || !config.token) {
-    return { success: true, message: 'Saved locally (GitHub sync not configured)', source: 'local' };
+    return { success: true, message: 'Saved locally (GitHub Token required to push to remote)', source: 'local' };
   }
 
   // First fetch latest SHA
@@ -159,7 +197,6 @@ export async function recordUserClick(username, batchDetails = null) {
   if (!licenses.users) licenses.users = {};
 
   if (!licenses.users[normUser]) {
-    // If not found, create placeholder
     licenses.users[normUser] = {
       username: username.trim(),
       totalClicks: 100,
@@ -175,13 +212,11 @@ export async function recordUserClick(username, batchDetails = null) {
     if (!u.history) u.history = [];
     if (batchDetails) {
       u.history.unshift(batchDetails);
-      // Limit history to 200 items
       if (u.history.length > 200) u.history.length = 200;
     }
   }
 
   saveLocalLicenses(licenses);
-  // Asynchronously sync to GitHub
   pushLicensesToGitHub(licenses, `Record 1 click for ${username} (Used: ${licenses.users[normUser].usedClicks})`)
     .then(r => {
       if (r.success) console.log('Successfully synced click count to GitHub');

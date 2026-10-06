@@ -1,12 +1,12 @@
 {
-  "updatedAt": "2026-10-06T17:25:00.000Z",
+  "updatedAt": "2026-10-06T19:15:00.000Z",
   "users": {
     "ashu": {
       "username": "ashu",
       "serial": "6542069181",
       "totalClicks": 1000,
-      "usedClicks": 0,
-      "remainingClicks": 1000,
+      "usedClicks": 2,
+      "remainingClicks": 998,
       "createdAt": "2026-10-06T18:41:18.598Z",
       "lastActive": "2026-10-06T18:42:59.436Z",
       "history": [

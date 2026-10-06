@@ -407,17 +407,40 @@ window.deleteUser = async function(userKey) {
 
   const res = await fetchLicensesFromGitHub();
   const licenses = res.data || { users: {} };
-  if (licenses.users && licenses.users[userKey]) {
-    const username = licenses.users[userKey].username || userKey;
+  const username = (licenses.users && licenses.users[userKey] && licenses.users[userKey].username) || userKey;
+
+  // 1. Remove from licenses payload
+  if (licenses.users) {
     delete licenses.users[userKey];
-    const pushRes = await pushLicensesToGitHub(licenses, `Delete user ${username}`);
-    if (pushRes.success) {
-      alert(`✅ User "${username}" has been permanently deleted.`);
-    } else {
-      alert(`⚠️ User "${username}" deleted locally. (${pushRes.error})`);
-    }
-    await loadDashboardData();
   }
+
+  // 2. Remove from local cache immediately
+  const local = getLocalLicenses();
+  if (local && local.users) {
+    delete local.users[userKey];
+    saveLocalLicenses(local);
+  }
+
+  // 3. Clear active license session if this was the logged in user
+  try {
+    const rawActive = localStorage.getItem('qr_app_active_license_v2');
+    if (rawActive) {
+      const activeObj = JSON.parse(rawActive);
+      if ((activeObj.username || '').toLowerCase() === userKey.toLowerCase()) {
+        localStorage.removeItem('qr_app_active_license_v2');
+      }
+    }
+  } catch (e) {}
+
+  // 4. Push deletion to GitHub
+  const pushRes = await pushLicensesToGitHub(licenses, `Delete user ${username}`);
+  if (pushRes.success) {
+    alert(`✅ User "${username}" has been permanently deleted.`);
+  } else {
+    alert(`⚠️ User "${username}" deleted locally. (${pushRes.error})`);
+  }
+
+  await loadDashboardData();
 };
 
 window.renewUser = async function(userKey) {

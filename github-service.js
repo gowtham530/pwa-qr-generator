@@ -69,30 +69,36 @@ export function saveLocalLicenses(data) {
   localStorage.setItem(LICENSES_CACHE_KEY, JSON.stringify(data));
 }
 
-// Merge remote licenses with local cache to avoid ever wiping out users
+// Merge remote licenses with local cache to avoid losing usedClicks, while respecting deleted users
 function mergeLicenses(remoteData) {
   const local = getLocalLicenses();
   const remoteUsers = remoteData?.users || {};
   const localUsers = local?.users || {};
 
-  // Combine both sets of users
-  const mergedUsers = { ...localUsers, ...remoteUsers };
+  const finalUsers = {};
 
-  for (const k of Object.keys(mergedUsers)) {
-    if (localUsers[k] && remoteUsers[k]) {
-      const uLoc = localUsers[k];
+  if (Object.keys(remoteUsers).length > 0) {
+    // Remote is the authoritative source of truth. Users deleted on remote stay deleted!
+    for (const k of Object.keys(remoteUsers)) {
       const uRem = remoteUsers[k];
-      mergedUsers[k] = {
-        ...uLoc,
+      const uLoc = localUsers[k];
+      const totalClicks = uRem.totalClicks || (uLoc ? uLoc.totalClicks : 100);
+      const usedClicks = Math.max(uRem.usedClicks || 0, (uLoc ? uLoc.usedClicks : 0));
+      finalUsers[k] = {
         ...uRem,
-        totalClicks: uRem.totalClicks || uLoc.totalClicks || 100,
-        usedClicks: Math.max(uRem.usedClicks || 0, uLoc.usedClicks || 0),
-        remainingClicks: Math.max(0, (uRem.totalClicks || uLoc.totalClicks || 100) - Math.max(uRem.usedClicks || 0, uLoc.usedClicks || 0)),
+        totalClicks: totalClicks,
+        usedClicks: usedClicks,
+        remainingClicks: Math.max(0, totalClicks - usedClicks)
       };
+    }
+  } else {
+    // Remote is completely empty (fresh repository or network offline fallback)
+    for (const k of Object.keys(localUsers)) {
+      finalUsers[k] = { ...localUsers[k] };
     }
   }
 
-  const result = { ...(remoteData || {}), users: mergedUsers };
+  const result = { ...(remoteData || {}), users: finalUsers };
   saveLocalLicenses(result);
   return result;
 }

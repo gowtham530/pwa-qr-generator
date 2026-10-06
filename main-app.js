@@ -1073,7 +1073,7 @@ export async function generatePDF() {
     saveQRHistoryBatch(batchRecord);
 
     // Sync 1 Click and Batch Details to GitHub (with UAN)
-    recordUserClick(username, {
+    await recordUserClick(username, {
       date: batchRecord.dateKey,
       time: batchRecord.timeFormatted,
       uan: uanVal,

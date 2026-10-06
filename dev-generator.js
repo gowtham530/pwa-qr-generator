@@ -297,8 +297,8 @@ function setupSettingsModal() {
 
   openBtn.addEventListener('click', () => {
     const cfg = getGitHubConfig();
-    ownerInput.value = cfg.owner || '';
-    repoInput.value = cfg.repo || '';
+    ownerInput.value = cfg.owner || 'gowtham530';
+    repoInput.value = cfg.repo || 'pwa-qr-generator';
     branchInput.value = cfg.branch || 'main';
     tokenInput.value = cfg.token || '';
     testMsg.textContent = '';
@@ -311,8 +311,8 @@ function setupSettingsModal() {
 
   saveBtn.addEventListener('click', () => {
     const config = {
-      owner: ownerInput.value.trim(),
-      repo: repoInput.value.trim(),
+      owner: ownerInput.value.trim() || 'gowtham530',
+      repo: repoInput.value.trim() || 'pwa-qr-generator',
       branch: branchInput.value.trim() || 'main',
       token: tokenInput.value.trim(),
       filePath: 'licenses.json'

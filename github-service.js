@@ -247,12 +247,13 @@ export async function recordUserClick(username, batchDetails = null) {
   }
 
   saveLocalLicenses(licenses);
-  pushLicensesToGitHub(licenses, `Record 1 click for ${username} (Used: ${licenses.users[normUser].usedClicks})`)
-    .then(r => {
-      if (r.success) console.log('Successfully synced click count to GitHub');
-      else console.warn('Could not sync click to GitHub:', r.error);
-    })
-    .catch(e => console.warn('Sync error:', e));
+  const pushRes = await pushLicensesToGitHub(licenses, `Record 1 click for ${username} (Used: ${licenses.users[normUser].usedClicks})`);
+  if (pushRes.success) {
+    console.log('✅ Successfully synced click count to GitHub');
+  } else {
+    console.warn('⚠️ Multi-device sync notice:', pushRes.error);
+  }
+  return pushRes;
 }
 
 // UTF-8 friendly base64 encoding & decoding

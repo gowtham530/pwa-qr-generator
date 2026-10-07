@@ -1233,6 +1233,37 @@ show(0);
 </script></body></html>`;
 }
 
+function openSlideshowOverlay(html, uanVal, onSave) {
+  const old = document.getElementById('slideshow-overlay');
+  if (old) old.remove();
+  const ov = document.createElement('div');
+  ov.id = 'slideshow-overlay';
+  ov.style.cssText = 'position:fixed;inset:0;z-index:99999;background:#0f172a;display:flex;flex-direction:column';
+  const bar = document.createElement('div');
+  bar.style.cssText = 'display:flex;gap:8px;justify-content:space-between;align-items:center;padding:8px 10px;background:#1e293b;color:#fff;font:600 14px system-ui';
+  const title = document.createElement('span');
+  title.textContent = 'QR Slideshow - UAN ' + uanVal;
+  const btns = document.createElement('span');
+  const mk = (label, fn) => {
+    const b = document.createElement('button');
+    b.textContent = label;
+    b.style.cssText = 'margin-left:8px;padding:8px 12px;border-radius:8px;border:1px solid #475569;background:#334155;color:#fff;font-size:14px';
+    b.onclick = fn;
+    btns.appendChild(b);
+  };
+  mk('Save File', () => onSave && onSave());
+  mk('Close', () => ov.remove());
+  bar.appendChild(title);
+  bar.appendChild(btns);
+  const frame = document.createElement('iframe');
+  frame.style.cssText = 'flex:1;width:100%;border:0;background:#0f172a';
+  frame.setAttribute('sandbox', 'allow-scripts allow-same-origin');
+  frame.srcdoc = html;
+  ov.appendChild(bar);
+  ov.appendChild(frame);
+  document.body.appendChild(ov);
+}
+
 export async function generateSlideshowLink() {
   const serials = getSelectedSerials();
   if (!serials) return;
@@ -1326,7 +1357,7 @@ export async function generateSlideshowLink() {
     const safeUan = uanVal.replace(/[/\\\\?%*:|"<>]/g, '_');
     const fileName = `${safeUan}.html`;
 
-    if (Capacitor.isNativePlatform()) {
+    const saveHtmlFile = async () => {
       try { await Filesystem.requestPermissions(); } catch (e) { console.warn(e); }
 
       const bytes = new TextEncoder().encode(html);
@@ -1337,11 +1368,9 @@ export async function generateSlideshowLink() {
       const b64 = btoa(bin);
 
       let writeResult;
-      let saveLocation = 'Documents (Mobile Drive)';
       try {
         writeResult = await Filesystem.writeFile({ path: fileName, data: b64, directory: Directory.Documents, recursive: true });
       } catch (docErr) {
-        saveLocation = 'App Storage';
         writeResult = await Filesystem.writeFile({ path: fileName, data: b64, directory: Directory.Cache, recursive: true });
       }
       try {
@@ -1349,8 +1378,9 @@ export async function generateSlideshowLink() {
       } catch (shareErr) {
         console.warn('Share dialog cancelled or failed:', shareErr);
       }
-      document.getElementById('success-pdf').textContent = `✅ QR slideshow saved to ${saveLocation}! (${count} QR codes) Open the .html file in a browser.`;
-    } else {
+    };
+
+    const downloadHtmlFile = () => {
       const blob = new Blob([html], { type: 'text/html' });
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
@@ -1360,8 +1390,14 @@ export async function generateSlideshowLink() {
       a.click();
       a.remove();
       setTimeout(() => URL.revokeObjectURL(url), 10000);
-      document.getElementById('success-pdf').textContent = `✅ QR slideshow generated! (${count} QR codes) Open the downloaded .html file.`;
+    };
+
+    const isNative = Capacitor.isNativePlatform();
+    if (!isNative && !/iPhone|iPad|Android/i.test(navigator.userAgent)) {
+      downloadHtmlFile();
     }
+    openSlideshowOverlay(html, uanVal, isNative ? saveHtmlFile : downloadHtmlFile);
+    document.getElementById('success-pdf').textContent = `✅ QR slideshow ready! (${count} QR codes) Showing now - use Save File in the viewer if you need the .html file.`;
     document.getElementById('progress-pdf').style.display = 'none';
     document.getElementById('success-pdf').style.display = 'block';
   } catch (error) {

@@ -1167,7 +1167,8 @@ export async function generatePDF() {
 //  6b. Slideshow Link (self-contained HTML page, one QR at a time)
 // ============================================================
 function buildSlideshowHTML(uanVal, serials, images) {
-  const data = JSON.stringify({ uan: uanVal, serials, images });
+  const safeU = String(uanVal).replace(/[<>&"]/g, '');
+  const listHtml = images.map((src, k) => `<figure><img src="${src}" data-s="${serials[k]}" alt="QR ${k + 1}"><figcaption>${k + 1}/${images.length} - ${serials[k]}</figcaption></figure>`).join('\n');
   return `<!DOCTYPE html>
 <html lang="en"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
@@ -1191,7 +1192,17 @@ h1{font-size:15px;font-weight:600;margin-bottom:8px;text-align:center}
 #play{background:#16a34a;border-color:#16a34a;font-weight:600}
 #play.on{background:#dc2626;border-color:#dc2626}
 label{font-size:13px;color:#94a3b8}
+#app{display:none;width:100%;flex-direction:column;align-items:center}
+body.js #app{display:flex}body.js #list{display:none}
+#list{width:100%;max-width:420px;text-align:center}
+#list figure{background:#fff;color:#000;padding:12px;margin:0 0 14px;border-radius:12px}
+#list img{width:100%;max-width:300px;height:auto}
+#list figcaption{font:14px monospace;margin-top:4px}
+.note{font-size:12px;color:#fbbf24;margin-bottom:10px}
 </style></head><body>
+<div id="list"><h1>UAN: ${safeU}</h1><div class="note">Slideshow needs JavaScript. Open this file in Chrome/Safari for auto-play. Scroll to see all QRs.</div>
+${listHtml}</div>
+<div id="app">
 <h1>UAN: <span id="uan"></span></h1>
 <div class="stage"><button class="nav" id="prev">&#8249;</button><div class="qrbox"><img id="qr" alt="QR"></div><button class="nav" id="next">&#8250;</button></div>
 <div class="serial" id="serial"></div><div class="count" id="count"></div>
@@ -1203,8 +1214,11 @@ label{font-size:13px;color:#94a3b8}
 <button id="go">Go</button>
 <button id="fs">Full Screen</button>
 </div>
+</div>
 <script>
-var D=${data},i=0,timer=null,$=function(x){return document.getElementById(x)};
+var D={uan:'${safeU.replace(/\\/g, '\\\\').replace(/'/g, "\\'")}',images:[],serials:[]},i=0,timer=null,$=function(x){return document.getElementById(x)};
+var L=document.querySelectorAll('#list img');for(var k=0;k<L.length;k++){D.images.push(L[k].src);D.serials.push(L[k].getAttribute('data-s'))}
+document.body.className='js';
 $('uan').textContent=D.uan;
 function show(n){var t=D.images.length;i=(n+t)%t;$('qr').src=D.images[i];$('serial').textContent=D.serials[i];$('count').textContent='QR '+(i+1)+' of '+t;$('fill').style.width=((i+1)/t*100)+'%';$('jump').value=i+1}
 function stop(){clearInterval(timer);timer=null;$('play').textContent='\u25B6 Auto Play';$('play').className=''}

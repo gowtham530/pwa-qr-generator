@@ -1164,6 +1164,201 @@ export async function generatePDF() {
 }
 
 // ============================================================
+//  6b. Slideshow Link (self-contained HTML page, one QR at a time)
+// ============================================================
+function buildSlideshowHTML(uanVal, serials, images) {
+  const data = JSON.stringify({ uan: uanVal, serials, images });
+  return `<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>QR Viewer - ${String(uanVal).replace(/[<>&"]/g, '')}</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:system-ui,Segoe UI,Roboto,sans-serif;background:#0f172a;color:#e2e8f0;min-height:100vh;display:flex;flex-direction:column;align-items:center;padding:12px}
+h1{font-size:15px;font-weight:600;margin-bottom:8px;text-align:center}
+.stage{display:flex;align-items:center;gap:10px;width:100%;max-width:640px;justify-content:center}
+.qrbox{background:#fff;padding:14px;border-radius:14px;flex:0 1 auto}
+.qrbox img{display:block;width:min(70vw,420px);height:min(70vw,420px);image-rendering:pixelated}
+.nav{width:52px;height:90px;border:none;border-radius:12px;background:#334155;color:#fff;font-size:28px;cursor:pointer}
+.nav:active{background:#6366f1}
+.serial{margin-top:10px;font-family:ui-monospace,Consolas,monospace;font-size:18px;letter-spacing:1px}
+.count{font-size:13px;color:#94a3b8;margin-top:2px}
+.bar{width:100%;max-width:640px;height:6px;background:#1e293b;border-radius:3px;margin:10px 0;overflow:hidden}
+.bar div{height:100%;width:0;background:linear-gradient(90deg,#6366f1,#22d3ee)}
+.ctl{display:flex;flex-wrap:wrap;gap:8px;justify-content:center;align-items:center;max-width:640px}
+.ctl button,.ctl input{height:42px;border-radius:10px;border:1px solid #475569;background:#1e293b;color:#fff;font-size:15px;padding:0 14px}
+.ctl input{width:78px;text-align:center}
+#play{background:#16a34a;border-color:#16a34a;font-weight:600}
+#play.on{background:#dc2626;border-color:#dc2626}
+label{font-size:13px;color:#94a3b8}
+</style></head><body>
+<h1>UAN: <span id="uan"></span></h1>
+<div class="stage"><button class="nav" id="prev">&#8249;</button><div class="qrbox"><img id="qr" alt="QR"></div><button class="nav" id="next">&#8250;</button></div>
+<div class="serial" id="serial"></div><div class="count" id="count"></div>
+<div class="bar"><div id="fill"></div></div>
+<div class="ctl">
+<button id="play">&#9654; Auto Play</button>
+<label>Seconds <input id="secs" type="number" min="0.5" step="0.5" value="2"></label>
+<label>Go to # <input id="jump" type="number" min="1" value="1"></label>
+<button id="go">Go</button>
+<button id="fs">Full Screen</button>
+</div>
+<script>
+var D=${data},i=0,timer=null,$=function(x){return document.getElementById(x)};
+$('uan').textContent=D.uan;
+function show(n){var t=D.images.length;i=(n+t)%t;$('qr').src=D.images[i];$('serial').textContent=D.serials[i];$('count').textContent='QR '+(i+1)+' of '+t;$('fill').style.width=((i+1)/t*100)+'%';$('jump').value=i+1}
+function stop(){clearInterval(timer);timer=null;$('play').textContent='\u25B6 Auto Play';$('play').className=''}
+function start(){var s=Math.max(0.5,parseFloat($('secs').value)||2);stop();timer=setInterval(function(){if(i>=D.images.length-1){stop();return}show(i+1)},s*1000);$('play').textContent='\u275A\u275A Pause';$('play').className='on'}
+$('prev').onclick=function(){show(i-1)};$('next').onclick=function(){show(i+1)};
+$('play').onclick=function(){timer?stop():start()};
+$('secs').onchange=function(){if(timer)start()};
+$('go').onclick=function(){show((parseInt($('jump').value)||1)-1)};
+$('fs').onclick=function(){var e=document.documentElement;(e.requestFullscreen||e.webkitRequestFullscreen||function(){}).call(e)};
+document.onkeydown=function(e){if(e.key==='ArrowRight')show(i+1);else if(e.key==='ArrowLeft')show(i-1);else if(e.key===' '){e.preventDefault();timer?stop():start()}};
+show(0);
+</script></body></html>`;
+}
+
+export async function generateSlideshowLink() {
+  const serials = getSelectedSerials();
+  if (!serials) return;
+  const count = serials.length;
+
+  const startSerial = (document.getElementById('start-pdf')?.value || '').trim().toUpperCase();
+  const endSerial = (document.getElementById('end-pdf')?.value || '').trim().toUpperCase();
+
+  const uanInput = document.getElementById('uan-pdf');
+  const uanErr = document.getElementById('uan-err');
+  const uanVal = (uanInput?.value || '').trim();
+
+  if (!uanVal) {
+    if (uanErr) uanErr.textContent = '❌ Please enter UAN Number';
+    if (uanInput) { uanInput.classList.add('input-invalid'); uanInput.focus(); }
+    alert('❌ UAN Number Required!\n\nPlease enter the UAN Number before generating the link.');
+    return;
+  }
+
+  const dupUan = checkDuplicateUAN(uanVal);
+  if (dupUan) {
+    if (uanErr) uanErr.textContent = `❌ Duplicate UAN: Already generated on ${dupUan.dateFormatted}`;
+    if (uanInput) uanInput.classList.add('input-invalid');
+    alert(`❌ Duplicate UAN Error!\n\nUAN Number "${uanVal}" has already been generated previously on ${dupUan.dateFormatted} at ${dupUan.timeFormatted}!`);
+    return;
+  }
+  if (uanErr) uanErr.textContent = '';
+  if (uanInput) uanInput.classList.remove('input-invalid');
+
+  const dupSerial = checkDuplicateSerial(startSerial, endSerial);
+  if (dupSerial) {
+    const startErr = document.getElementById('start-serial-err');
+    if (startErr) startErr.textContent = `❌ Duplicate: Used in UAN: ${dupSerial.uan || 'N/A'}`;
+    alert(`❌ Duplicate Serial Number Error!\n\nSerial range "${startSerial} → ${endSerial}" overlaps a previous UAN: "${dupSerial.uan || 'N/A'}" on ${dupSerial.dateFormatted}!`);
+    return;
+  }
+
+  const canProceed = consumeClickQuota();
+  if (!canProceed) return;
+
+  const activeLic = getActiveLicense();
+  const username = activeLic ? activeLic.username : 'User';
+
+  document.getElementById('progress-pdf').style.display = 'block';
+  document.getElementById('preview-pdf').style.display = 'none';
+  document.getElementById('success-pdf').style.display = 'none';
+  document.getElementById('err-pdf').textContent = '';
+  document.getElementById('gen-btn').disabled = true;
+  const linkBtn = document.getElementById('link-btn');
+  if (linkBtn) linkBtn.disabled = true;
+
+  try {
+    const images = [];
+    for (let i = 0; i < serials.length; i++) {
+      const encrypted = await encryptAESGCM(serials[i]);
+      images.push(await QRCode.toDataURL(encrypted, {
+        errorCorrectionLevel: 'H',
+        width: 300,
+        margin: 2
+      }));
+      if (i % 5 === 0) await yieldToEventLoop();
+      document.getElementById('progress-fill-pdf').style.width = ((i + 1) / serials.length * 100) + '%';
+    }
+
+    const html = buildSlideshowHTML(uanVal, serials, images);
+
+    const now = new Date();
+    const batchRecord = {
+      id: 'batch_' + Date.now(),
+      timestamp: Date.now(),
+      dateKey: now.toISOString().slice(0, 10),
+      dateFormatted: now.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' }),
+      timeFormatted: now.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }),
+      uan: uanVal,
+      startSerial: startSerial,
+      endSerial: endSerial,
+      count: count,
+      username: username
+    };
+    saveQRHistoryBatch(batchRecord);
+
+    await recordUserClick(username, {
+      date: batchRecord.dateKey,
+      time: batchRecord.timeFormatted,
+      uan: uanVal,
+      startSerial: startSerial,
+      endSerial: endSerial,
+      count: count
+    });
+
+    const safeUan = uanVal.replace(/[/\\\\?%*:|"<>]/g, '_');
+    const fileName = `${safeUan}.html`;
+
+    if (Capacitor.isNativePlatform()) {
+      try { await Filesystem.requestPermissions(); } catch (e) { console.warn(e); }
+
+      const bytes = new TextEncoder().encode(html);
+      let bin = '';
+      for (let i = 0; i < bytes.length; i += 0x8000) {
+        bin += String.fromCharCode.apply(null, bytes.subarray(i, i + 0x8000));
+      }
+      const b64 = btoa(bin);
+
+      let writeResult;
+      let saveLocation = 'Documents (Mobile Drive)';
+      try {
+        writeResult = await Filesystem.writeFile({ path: fileName, data: b64, directory: Directory.Documents, recursive: true });
+      } catch (docErr) {
+        saveLocation = 'App Storage';
+        writeResult = await Filesystem.writeFile({ path: fileName, data: b64, directory: Directory.Cache, recursive: true });
+      }
+      try {
+        await Share.share({ title: fileName, text: `QR Slideshow (${count} codes)`, url: writeResult.uri, dialogTitle: 'Save or Share QR Slideshow' });
+      } catch (shareErr) {
+        console.warn('Share dialog cancelled or failed:', shareErr);
+      }
+      document.getElementById('success-pdf').textContent = `✅ QR slideshow saved to ${saveLocation}! (${count} QR codes) Open the .html file in a browser.`;
+    } else {
+      const blob = new Blob([html], { type: 'text/html' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = fileName;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 10000);
+      document.getElementById('success-pdf').textContent = `✅ QR slideshow generated! (${count} QR codes) Open the downloaded .html file.`;
+    }
+    document.getElementById('progress-pdf').style.display = 'none';
+    document.getElementById('success-pdf').style.display = 'block';
+  } catch (error) {
+    document.getElementById('err-pdf').textContent = 'Error generating link: ' + error.message;
+  } finally {
+    document.getElementById('gen-btn').disabled = false;
+    if (linkBtn) linkBtn.disabled = false;
+  }
+}
+
+// ============================================================
 //  7. Initialization & Event Attachments
 // ============================================================
 if ('serviceWorker' in navigator) {
@@ -1177,6 +1372,7 @@ if ('serviceWorker' in navigator) {
 // Window attachments for inline handlers
 window.startPreview = startPreview;
 window.generatePDF = generatePDF;
+window.generateSlideshowLink = generateSlideshowLink;
 window.navigatePreview = navigatePreview;
 window.openLicenseModal = openLicenseModal;
 window.closeLicenseModal = closeLicenseModal;

@@ -1393,11 +1393,24 @@ export async function generateSlideshowLink() {
     };
 
     const isNative = Capacitor.isNativePlatform();
-    if (!isNative && !/iPhone|iPad|Android/i.test(navigator.userAgent)) {
-      downloadHtmlFile();
+    if (isNative) {
+      await saveHtmlFile();
+    } else {
+      // Mobile browser/PWA: use the native share sheet with the file so it can be saved or sent; fall back to download
+      let shared = false;
+      try {
+        const file = new File([html], fileName, { type: 'text/html' });
+        if (/iPhone|iPad|Android/i.test(navigator.userAgent) && navigator.canShare && navigator.canShare({ files: [file] })) {
+          await navigator.share({ files: [file], title: fileName });
+          shared = true;
+        }
+      } catch (shareErr) {
+        console.warn('File share cancelled or failed, falling back to download:', shareErr);
+        shared = shareErr && shareErr.name === 'AbortError';
+      }
+      if (!shared) downloadHtmlFile();
     }
-    openSlideshowOverlay(html, uanVal, isNative ? saveHtmlFile : downloadHtmlFile);
-    document.getElementById('success-pdf').textContent = `✅ QR slideshow ready! (${count} QR codes) Showing now - use Save File in the viewer if you need the .html file.`;
+    document.getElementById('success-pdf').textContent = `✅ QR slideshow HTML saved! (${count} QR codes) File: ${fileName} - share it with users and open it in Chrome/Safari.`;
     document.getElementById('progress-pdf').style.display = 'none';
     document.getElementById('success-pdf').style.display = 'block';
   } catch (error) {

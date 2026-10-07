@@ -17,22 +17,6 @@
           "startSerial": "AP25R007661258",
           "endSerial": "AP25R007661837",
           "count": 580
-        },
-        {
-          "date": "2026-10-06",
-          "time": "12:12 AM",
-          "uan": "145232",
-          "startSerial": "AP25R002008956",
-          "endSerial": "AP25R002009535",
-          "count": 580
-        },
-        {
-          "date": "2026-10-06",
-          "time": "12:12 AM",
-          "uan": "145231",
-          "startSerial": "AP25R002007956",
-          "endSerial": "AP25R002008535",
-          "count": 580
         }
       ],
       "renewedAt": "2026-10-06T19:04:29.209Z"

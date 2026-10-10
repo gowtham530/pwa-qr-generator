@@ -45,6 +45,8 @@ export function validate14CharSerial(serialVal, fieldPrefix) {
     countEl.textContent = `${len}/14`;
     if (len === 14 && s.startsWith('AP25R')) {
       countEl.className = 'char-badge valid';
+    } else if (len === 0) {
+      countEl.className = 'char-badge';
     } else {
       countEl.className = 'char-badge invalid';
     }
@@ -626,6 +628,16 @@ export function saveQRHistoryBatch(batchRecord) {
     permList.unshift(batchRecord);
     if (permList.length > 10000) permList.length = 10000;
     localStorage.setItem(PERM_REGISTRY_KEY, JSON.stringify(permList));
+  } catch (e) {}
+
+  // Save last generated serials so they appear on next app open
+  try {
+    if (batchRecord.startSerial && batchRecord.endSerial) {
+      localStorage.setItem('qr_app_last_generated_serials_v1', JSON.stringify({
+        start: batchRecord.startSerial,
+        end: batchRecord.endSerial
+      }));
+    }
   } catch (e) {}
 
   renderQRHistoryUI();
@@ -1414,6 +1426,33 @@ window.addEventListener('DOMContentLoaded', () => {
   const startInput = document.getElementById('start-pdf');
   const endInput = document.getElementById('end-pdf');
 
+  // Pre-populate previous generated Start S/N and End S/N
+  try {
+    let prevStart = '';
+    let prevEnd = '';
+    const saved = localStorage.getItem('qr_app_last_generated_serials_v1');
+    if (saved) {
+      const parsed = JSON.parse(saved);
+      if (parsed?.start) prevStart = parsed.start;
+      if (parsed?.end) prevEnd = parsed.end;
+    }
+    if (!prevStart || !prevEnd) {
+      const hist = getQRHistory();
+      if (hist && hist.length > 0) {
+        if (hist[0].startSerial) prevStart = hist[0].startSerial;
+        if (hist[0].endSerial) prevEnd = hist[0].endSerial;
+      }
+    }
+    if (startInput && prevStart) {
+      startInput.value = prevStart;
+    }
+    if (endInput && prevEnd) {
+      endInput.value = prevEnd;
+    }
+  } catch (e) {
+    console.warn('Could not restore previous serials:', e);
+  }
+
   if (startInput) {
     const handleStartChange = () => {
       validate14CharSerial(startInput.value, 'start');
@@ -1425,7 +1464,9 @@ window.addEventListener('DOMContentLoaded', () => {
     // Initial validation
     if (startInput.value) {
       validate14CharSerial(startInput.value, 'start');
-      autoFillEndSerial();
+      if (!endInput?.value) {
+        autoFillEndSerial();
+      }
     }
   }
 

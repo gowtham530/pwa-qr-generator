@@ -5,7 +5,7 @@
 // - Works in PWA web browser and Capacitor Android APK
 // ============================================================
 
-const PRODUCTION_API_URL = 'https://pwa-qr-generator.netlify.app/api/qr-service';
+const PRODUCTION_API_URL = 'https://genqr580.netlify.app/api/qr-service';
 
 // Detect whether we are in a mobile native wrapper (Capacitor) or in a web browser
 function getApiEndpoint() {

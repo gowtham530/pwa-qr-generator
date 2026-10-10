@@ -1,6 +1,16 @@
 [build]
   command = "npm run build"
   publish = "www"
+  functions = "netlify/functions"
+
+[build.environment]
+  NODE_VERSION = "20"
+
+# API Redirect: Route /api/* to Netlify Functions
+[[redirects]]
+  from = "/api/*"
+  to = "/.netlify/functions/:splat"
+  status = 200
 
 # SPA Fallback: Direct all routes to index.html for PWA navigation
 [[redirects]]

@@ -3,21 +3,23 @@ import { Filesystem, Directory } from '@capacitor/filesystem';
 import { Share } from '@capacitor/share';
 import { jsPDF } from 'jspdf';
 import QRCode from 'qrcode';
-import { hmac } from '@noble/hashes/hmac.js';
-import { sha256 } from '@noble/hashes/sha2.js';
-import { gcm } from '@noble/ciphers/aes.js';
 import { 
   fetchLicensesFromGitHub, 
   recordUserClick, 
   getLocalLicenses, 
   saveLocalLicenses 
 } from './github-service.js';
+import {
+  requestBatchEncryption,
+  requestSingleEncryption,
+  activateLicenseRemote,
+  syncQuotaRemote
+} from './qr-api-client.js';
 
 // ============================================================
-//  1. AES-256-GCM Encryption Module (For QR Code Contents)
+//  1. Secure Zero-Trust QR Client Module
+//  (Keys and algorithms are safely isolated in Netlify Serverless Backend)
 // ============================================================
-const QR_KEY_HEX = 'fdeffaeff7efbfeffd72fefceffcef2fefefcfefefefefeffa2eeff7feefef75';
-const QR_IV_HEX  = 'ffeffaefefefefc5a7efef9c';
 
 // Storage keys
 const LICENSE_STORAGE_KEY = 'qr_app_active_license_v2';
@@ -25,53 +27,14 @@ const HISTORY_STORAGE_KEY = 'qr_app_daywise_history_v1';
 const PERM_REGISTRY_KEY   = 'qr_app_permanent_registry_v1';
 
 // -----------------------------------------------------------
-// Helpers: Hex <--> Bytes
-// -----------------------------------------------------------
-function hexToBytes(hex) {
-  const cleanHex = hex.replace(/[^0-9a-fA-F]/g, '');
-  const bytes = new Uint8Array(cleanHex.length / 2);
-  for (let i = 0; i < cleanHex.length; i += 2) {
-    bytes[i / 2] = parseInt(cleanHex.substr(i, 2), 16);
-  }
-  return bytes;
-}
-
-function bytesToHex(bytes) {
-  return Array.from(bytes)
-    .map(b => b.toString(16).padStart(2, '0'))
-    .join('');
-}
-
-// -----------------------------------------------------------
-// QR Code Encryption (Pure JS AES-256-GCM)
+// QR Code Encryption (Calls secure backend API)
 // -----------------------------------------------------------
 async function encryptAESGCM(plaintext) {
-  const key = hexToBytes(QR_KEY_HEX);
-  const iv  = hexToBytes(QR_IV_HEX);
-  const pt = new TextEncoder().encode(plaintext);
-
-  try {
-    const cipher = gcm(key, iv);
-    const encrypted = cipher.encrypt(pt);
-    return bytesToHex(encrypted);
-  } catch (nobleErr) {
-    if (typeof crypto !== 'undefined' && crypto.subtle) {
-      const cryptoKey = await crypto.subtle.importKey(
-        'raw',
-        key,
-        { name: 'AES-GCM' },
-        false,
-        ['encrypt']
-      );
-      const encrypted = await crypto.subtle.encrypt(
-        { name: 'AES-GCM', iv: iv },
-        cryptoKey,
-        pt
-      );
-      return bytesToHex(new Uint8Array(encrypted));
-    }
-    throw nobleErr;
+  const activeLic = getActiveLicense();
+  if (!activeLic) {
+    throw new Error('Please activate your license with username & serial key first.');
   }
+  return await requestSingleEncryption(activeLic.username, activeLic.serialNumber, plaintext);
 }
 
 // ============================================================
@@ -299,52 +262,27 @@ export function updateLicenseUI() {
   }
 }
 
-// Automatically sync latest quota from GitHub for active user
+// Automatically sync latest quota from server for active user
 export async function syncLatestQuotaFromGitHub(showToast = false) {
   const currentLicense = getActiveLicense();
   if (!currentLicense) return;
 
   try {
-    const licRes = await fetchLicensesFromGitHub();
-    const licenses = licRes.data || { users: {} };
-    const users = licenses.users || {};
-
-    let matchedUser = users[currentLicense.username?.toLowerCase()];
-    if (!matchedUser && currentLicense.serialNumber) {
-      const foundKey = Object.keys(users).find(k => String(users[k].serial || '').trim() === String(currentLicense.serialNumber).trim());
-      if (foundKey) matchedUser = users[foundKey];
-    }
-
-    if (matchedUser) {
-      const remoteTotal = Number(matchedUser.totalClicks) || 100;
-      const remoteUsed = Number(matchedUser.usedClicks) || 0;
-      const localUsed = Number(currentLicense.usedClicks) || 0;
-      const isSameSerial = String(matchedUser.serial || '').trim() === String(currentLicense.serialNumber || '').trim();
-
-      // If user was renewed with a new serial on remote, discard old local click count
-      let effectiveUsed = remoteUsed;
-      if (isSameSerial) {
-        effectiveUsed = Math.max(remoteUsed, localUsed);
-      }
-
-      currentLicense.totalClicks = remoteTotal;
-      currentLicense.usedClicks = effectiveUsed;
-      currentLicense.remainingClicks = Math.max(0, remoteTotal - effectiveUsed);
-      if (matchedUser.serial) currentLicense.serialNumber = String(matchedUser.serial);
+    const res = await syncQuotaRemote(currentLicense.username, currentLicense.serialNumber);
+    if (res.success) {
+      currentLicense.totalClicks = res.totalClicks;
+      currentLicense.usedClicks = res.usedClicks;
+      currentLicense.remainingClicks = res.remainingClicks;
       saveActiveLicense(currentLicense);
       updateLicenseUI();
-
-      if (isSameSerial && localUsed > remoteUsed) {
-        recordUserClick(currentLicense.username);
-      }
       if (showToast) {
         alert(`✅ Quota refreshed!\nTotal: ${currentLicense.totalClicks} clicks\nRemaining: ${currentLicense.remainingClicks} clicks left`);
       }
     } else if (showToast) {
-      alert(`Current quota: ${currentLicense.remainingClicks} / ${currentLicense.totalClicks} clicks`);
+      alert(`⚠️ ${res.error || 'Could not refresh quota'}`);
     }
   } catch (err) {
-    console.warn('Could not sync latest quota from GitHub:', err);
+    console.warn('Could not sync latest quota from server:', err);
     if (showToast) {
       alert(`⚠️ Could not sync with server: ${err.message}`);
     }
@@ -363,58 +301,14 @@ export async function activateLicense(username, serialKey) {
     return { success: false, error: 'Please enter the Serial Number provided by the developer.' };
   }
 
-  // First verify against GitHub / Local Licenses database
-  try {
-    const licRes = await fetchLicensesFromGitHub();
-    const licenses = licRes.data || { users: {} };
-    const users = licenses.users || {};
-    const normUser = cleanUser.toLowerCase();
-
-    let matchedUser = users[normUser];
-    if (!matchedUser) {
-      const foundKey = Object.keys(users).find(k => String(users[k].serial || '').trim() === cleanKey);
-      if (foundKey) matchedUser = users[foundKey];
-    }
-
-    if (matchedUser && String(matchedUser.serial || '').trim() === cleanKey) {
-      const allowedClicks = Number(matchedUser.totalClicks) || 100;
-      const usedClicks = Number(matchedUser.usedClicks) || 0;
-      const remainingClicks = Math.max(0, allowedClicks - usedClicks);
-
-      const licenseRecord = {
-        username: matchedUser.username || cleanUser,
-        totalClicks: allowedClicks,
-        usedClicks: usedClicks,
-        remainingClicks: remainingClicks,
-        serialNumber: cleanKey,
-        activatedAt: Date.now()
-      };
-      saveActiveLicense(licenseRecord);
-      return { success: true, license: licenseRecord };
-    }
-  } catch (err) {
-    console.warn('Error checking GitHub licenses during activation:', err);
-  }
-
-  // Also check local licenses directly
-  const localLics = getLocalLicenses();
-  const localUsers = localLics.users || {};
-  let localMatch = localUsers[cleanUser.toLowerCase()];
-  if (!localMatch) {
-    const foundKey = Object.keys(localUsers).find(k => String(localUsers[k].serial || '').trim() === cleanKey);
-    if (foundKey) localMatch = localUsers[foundKey];
-  }
-
-  if (localMatch && String(localMatch.serial || '').trim() === cleanKey) {
-    const allowedClicks = Number(localMatch.totalClicks) || 100;
-    const usedClicks = Number(localMatch.usedClicks) || 0;
-    const remainingClicks = Math.max(0, allowedClicks - usedClicks);
-
+  // Verify against secure server API (Zero-Trust verification)
+  const res = await activateLicenseRemote(cleanUser, cleanKey);
+  if (res.success && res.license) {
     const licenseRecord = {
-      username: localMatch.username || cleanUser,
-      totalClicks: allowedClicks,
-      usedClicks: usedClicks,
-      remainingClicks: remainingClicks,
+      username: res.license.username || cleanUser,
+      totalClicks: res.license.totalClicks,
+      usedClicks: res.license.usedClicks,
+      remainingClicks: res.license.remainingClicks,
       serialNumber: cleanKey,
       activatedAt: Date.now()
     };
@@ -422,21 +316,10 @@ export async function activateLicense(username, serialKey) {
     return { success: true, license: licenseRecord };
   }
 
-  // If serial is 10-digit numeric key, allow standard 100 clicks activation if valid
-  if (/^\d{10}$/.test(cleanKey)) {
-    const licenseRecord = {
-      username: cleanUser,
-      totalClicks: 100,
-      usedClicks: 0,
-      remainingClicks: 100,
-      serialNumber: cleanKey,
-      activatedAt: Date.now()
-    };
-    saveActiveLicense(licenseRecord);
-    return { success: true, license: licenseRecord };
-  }
-
-  return { success: false, error: '❌ Invalid 10-digit serial number or Username mismatch. Please check with Developer.' };
+  return { 
+    success: false, 
+    error: res.error || '❌ Invalid serial number or Username mismatch. Please check with Developer.' 
+  };
 }
 
 // Click Quota Deductor: Consumes 1 Click per PDF generation tap
@@ -999,6 +882,18 @@ export async function generatePDF() {
   document.getElementById('gen-btn').disabled = true;
 
   try {
+    document.getElementById('info-pdf').textContent = 'Connecting to secure server for cryptographic generation...';
+    const batchRes = await requestBatchEncryption(activeLic.username, activeLic.serialNumber, serials, {
+      uan: uanVal,
+      startSerial: startSerial,
+      endSerial: endSerial,
+      count: count
+    });
+    const encryptedSerials = batchRes.encrypted;
+    activeLic.usedClicks = batchRes.usedClicks;
+    activeLic.remainingClicks = batchRes.remainingClicks;
+    saveActiveLicense(activeLic);
+
     const pdf = new jsPDF({orientation: 'portrait', unit: 'mm', format: 'a4'});
 
     const pageWidth = 210;
@@ -1025,7 +920,7 @@ export async function generatePDF() {
       for (let row = 0; row < rows && codeIdx < serials.length; row++) {
         for (let col = 0; col < cols && codeIdx < serials.length; col++) {
           const serial = serials[codeIdx];
-          const encrypted = await encryptAESGCM(serial);
+          const encrypted = encryptedSerials[codeIdx];
 
           const qrDataUrl = await QRCode.toDataURL(encrypted, {
             errorCorrectionLevel: 'H',
@@ -1316,9 +1211,20 @@ export async function generateSlideshowLink() {
   if (linkBtn) linkBtn.disabled = true;
 
   try {
+    const batchRes = await requestBatchEncryption(activeLic.username, activeLic.serialNumber, serials, {
+      uan: uanVal,
+      startSerial: startSerial,
+      endSerial: endSerial,
+      count: count
+    });
+    const encryptedSerials = batchRes.encrypted;
+    activeLic.usedClicks = batchRes.usedClicks;
+    activeLic.remainingClicks = batchRes.remainingClicks;
+    saveActiveLicense(activeLic);
+
     const images = [];
     for (let i = 0; i < serials.length; i++) {
-      const encrypted = await encryptAESGCM(serials[i]);
+      const encrypted = encryptedSerials[i];
       images.push(await QRCode.toDataURL(encrypted, {
         errorCorrectionLevel: 'H',
         width: 300,

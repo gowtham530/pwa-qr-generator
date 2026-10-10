@@ -967,16 +967,6 @@ export async function generatePDF() {
     };
     saveQRHistoryBatch(batchRecord);
 
-    // Sync 1 Click and Batch Details to GitHub (with UAN)
-    await recordUserClick(username, {
-      date: batchRecord.dateKey,
-      time: batchRecord.timeFormatted,
-      uan: uanVal,
-      startSerial: startSerial,
-      endSerial: endSerial,
-      count: count
-    });
-
     // File Download Logic: Renamed with this UAN Number only
     const safeUan = uanVal.replace(/[/\\?%*:|"<>]/g, '_');
     const fileName = `${safeUan}.pdf`;
@@ -1244,15 +1234,6 @@ export async function generateSlideshowLink() {
       username: username
     };
     saveQRHistoryBatch(batchRecord);
-
-    await recordUserClick(username, {
-      date: batchRecord.dateKey,
-      time: batchRecord.timeFormatted,
-      uan: uanVal,
-      startSerial: startSerial,
-      endSerial: endSerial,
-      count: count
-    });
 
     const safeUan = uanVal.replace(/[/\\\\?%*:|"<>]/g, '_');
     const fileName = `${safeUan}.html`;

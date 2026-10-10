@@ -1306,9 +1306,18 @@ export async function generateSlideshowLink() {
 //  7. Initialization & Event Attachments
 // ============================================================
 if ('serviceWorker' in navigator) {
+  if ('caches' in window) {
+    caches.keys().then(keys => {
+      keys.forEach(k => {
+        if (k !== 'qr-generator-offline-v6') caches.delete(k);
+      });
+    });
+  }
   window.addEventListener('load', () => {
     navigator.serviceWorker.register('./sw.js')
-      .then(reg => console.log('SW registered: ', reg))
+      .then(reg => {
+        reg.update();
+      })
       .catch(err => console.log('SW registration failed: ', err));
   });
 }

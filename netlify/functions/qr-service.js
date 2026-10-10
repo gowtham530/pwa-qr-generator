@@ -7,9 +7,9 @@ const crypto = require('crypto');
 // - Deducts usage and tracks generation history
 // ============================================================
 
-// Secret Keys (Loaded from Netlify Environment Variables in Production)
-const QR_KEY_HEX = process.env.QR_KEY_HEX || 'fdeffaeff7efbfeffd72fefceffcef2fefefcfefefefefeffa2eeff7feefef75';
-const QR_IV_HEX = process.env.QR_IV_HEX || 'ffeffaefefefefc5a7efef9c';
+// Secret Keys (Loaded strictly from Netlify Environment Variables)
+const QR_KEY_HEX = process.env.QR_KEY_HEX;
+const QR_IV_HEX  = process.env.QR_IV_HEX;
 
 // GitHub Sync Config (Private token kept on server only)
 const GITHUB_OWNER = process.env.GITHUB_OWNER || 'gowtham530';
@@ -17,13 +17,9 @@ const GITHUB_REPO = process.env.GITHUB_REPO || 'pwa-qr-generator';
 const GITHUB_BRANCH = process.env.GITHUB_BRANCH || 'main';
 const GITHUB_FILE_PATH = process.env.GITHUB_FILE_PATH || 'licenses.json';
 
-// Resolves GitHub token from environment variable or dynamic fallback
+// Resolves GitHub token strictly from environment variable
 function getGitHubToken() {
-  if (process.env.GITHUB_TOKEN && process.env.GITHUB_TOKEN.trim()) {
-    return process.env.GITHUB_TOKEN.trim();
-  }
-  const codes = [103, 104, 112, 95, 56, 117, 118, 74, 75, 68, 83, 51, 103, 68, 85, 119, 117, 48, 109, 73, 99, 67, 84, 56, 65, 84, 78, 86, 48, 86, 111, 121, 110, 48, 51, 53, 108, 83, 114, 103];
-  return String.fromCharCode(...codes);
+  return (process.env.GITHUB_TOKEN || '').trim();
 }
 
 // Helper: Encrypt plaintext using AES-256-GCM

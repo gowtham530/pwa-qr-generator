@@ -5,6 +5,7 @@
 
 [build.environment]
   NODE_VERSION = "20"
+  SECRETS_SCAN_OMIT_KEYS = "QR_IV_HEX,QR_KEY_HEX"
 
 # API Redirect: Route /api/* to Netlify Functions
 [[redirects]]

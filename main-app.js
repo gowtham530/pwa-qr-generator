@@ -4,12 +4,6 @@ import { Share } from '@capacitor/share';
 import { jsPDF } from 'jspdf';
 import QRCode from 'qrcode';
 import { 
-  fetchLicensesFromGitHub, 
-  recordUserClick, 
-  getLocalLicenses, 
-  saveLocalLicenses 
-} from './github-service.js';
-import {
   requestBatchEncryption,
   requestSingleEncryption,
   activateLicenseRemote,

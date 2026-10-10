@@ -15,10 +15,9 @@ const DEFAULT_CONFIG = {
   filePath: 'licenses.json'
 };
 
-// Built-in sync credentials fallback (reconstructed dynamically so Git Push Protection regex is not triggered while ensuring real-time multi-device sync across iPhones, laptops, and PWAs out-of-the-box)
+// Built-in sync credentials fallback (empty by default; configured via admin settings)
 export function getBuiltinSyncToken() {
-  const codes = [103, 104, 112, 95, 56, 117, 118, 74, 75, 68, 83, 51, 103, 68, 85, 119, 117, 48, 109, 73, 99, 67, 84, 56, 65, 84, 78, 86, 48, 86, 111, 121, 110, 48, 51, 53, 108, 83, 114, 103];
-  return String.fromCharCode(...codes);
+  return '';
 }
 
 let externalConfigAttempted = false;

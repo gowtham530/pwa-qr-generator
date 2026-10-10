@@ -5,11 +5,19 @@
       "username": "ashu",
       "serial": "6542069181",
       "totalClicks": 1000,
-      "usedClicks": 11,
-      "remainingClicks": 989,
+      "usedClicks": 12,
+      "remainingClicks": 988,
       "createdAt": "2026-10-06T18:41:18.598Z",
-      "lastActive": "2026-10-09T03:29:37.869Z",
+      "lastActive": "2026-10-10T05:28:35.658Z",
       "history": [
+        {
+          "date": "2026-10-10",
+          "time": "10:58 AM",
+          "uan": "145678",
+          "startSerial": "AP25R021702516",
+          "endSerial": "AP25R021703082",
+          "count": 567
+        },
         {
           "date": "2026-10-09",
           "time": "08:59 AM",

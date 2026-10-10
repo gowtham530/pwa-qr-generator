@@ -240,6 +240,9 @@ export function updateLicenseUI() {
   if (userText) userText.textContent = license.username;
   const isSuspended = license.status === 'suspended' || license.status === 'payment_pending';
 
+  const genBtn = document.getElementById('gen-btn');
+  const linkBtn = document.getElementById('link-btn');
+
   if (isSuspended) {
     if (quotaText) quotaText.textContent = '🔒 Payment Hold';
     if (quotaPill) quotaPill.className = 'quota-pill exhausted';
@@ -247,25 +250,39 @@ export function updateLicenseUI() {
       exhaustedBanner.style.display = 'block';
       exhaustedBanner.innerHTML = '⚠️ <strong>Account On Hold:</strong> Payment is pending. Please contact developer to restore access.';
     }
-    const genBtn = document.getElementById('gen-btn');
     if (genBtn) genBtn.disabled = true;
+    if (linkBtn) linkBtn.disabled = true;
     return;
   }
+
+  // Not suspended: Ensure banners and buttons are restored!
+  if (exhaustedBanner) exhaustedBanner.style.display = 'none';
 
   const rem = license.remainingClicks ?? (license.totalClicks - (license.usedClicks || 0));
   const total = license.totalClicks || 100;
   if (quotaText) quotaText.textContent = `${rem} / ${total} clicks left`;
 
-  if (quotaPill) {
-    quotaPill.classList.remove('low', 'exhausted');
-    if (rem <= 0) {
-      quotaPill.classList.add('exhausted');
-      if (exhaustedBanner) exhaustedBanner.style.display = 'block';
-    } else if (rem <= Math.max(5, Math.floor(total * 0.2))) {
-      quotaPill.classList.add('low');
-      if (exhaustedBanner) exhaustedBanner.style.display = 'none';
-    } else {
-      if (exhaustedBanner) exhaustedBanner.style.display = 'none';
+  if (rem <= 0) {
+    if (quotaPill) quotaPill.className = 'quota-pill exhausted';
+    if (exhaustedBanner) {
+      exhaustedBanner.style.display = 'block';
+      exhaustedBanner.textContent = 'Click quota exhausted! Please contact developer for renewal.';
+    }
+    if (genBtn) genBtn.disabled = true;
+    if (linkBtn) linkBtn.disabled = true;
+  } else {
+    // Unfrozen with remaining quota: Re-enable Generate and Slideshow buttons!
+    if (genBtn) genBtn.disabled = false;
+    if (linkBtn) linkBtn.disabled = false;
+    if (exhaustedBanner) exhaustedBanner.style.display = 'none';
+
+    if (quotaPill) {
+      quotaPill.classList.remove('exhausted');
+      if (rem <= Math.max(5, Math.floor(total * 0.2))) {
+        quotaPill.classList.add('low');
+      } else {
+        quotaPill.classList.remove('low');
+      }
     }
   }
 }

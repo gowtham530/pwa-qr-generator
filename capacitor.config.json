@@ -1,0 +1,8 @@
+{
+  "appId": "com.genqr580.app",
+  "appName": "QR Generator",
+  "webDir": "www",
+  "server": {
+    "androidScheme": "https"
+  }
+}

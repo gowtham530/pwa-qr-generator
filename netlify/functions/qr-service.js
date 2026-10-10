@@ -138,6 +138,14 @@ exports.handler = async (event, context) => {
       }
 
       if (matched && String(matched.serial || '').trim() === serial) {
+        if (matched.status === 'suspended' || matched.status === 'payment_pending') {
+          return {
+            statusCode: 403,
+            headers,
+            body: JSON.stringify({ success: false, error: '⚠️ Account Suspended: Payment is pending. Please contact developer to reactivate your license.' })
+          };
+        }
+
         const total = Number(matched.totalClicks) || 100;
         const used = Number(matched.usedClicks) || 0;
         const rem = Math.max(0, total - used);
@@ -152,7 +160,8 @@ exports.handler = async (event, context) => {
               serial: serial,
               totalClicks: total,
               usedClicks: used,
-              remainingClicks: rem
+              remainingClicks: rem,
+              status: matched.status || 'active'
             }
           })
         };
@@ -179,6 +188,18 @@ exports.handler = async (event, context) => {
       }
 
       if (matched) {
+        if (matched.status === 'suspended' || matched.status === 'payment_pending') {
+          return {
+            statusCode: 403,
+            headers,
+            body: JSON.stringify({
+              success: false,
+              status: 'suspended',
+              error: '⚠️ Account Suspended: Payment is pending. Please contact developer to reactivate your license.'
+            })
+          };
+        }
+
         const total = Number(matched.totalClicks) || 100;
         const used = Number(matched.usedClicks) || 0;
         return {
@@ -188,7 +209,8 @@ exports.handler = async (event, context) => {
             success: true,
             totalClicks: total,
             usedClicks: used,
-            remainingClicks: Math.max(0, total - used)
+            remainingClicks: Math.max(0, total - used),
+            status: matched.status || 'active'
           })
         };
       }
@@ -227,6 +249,14 @@ exports.handler = async (event, context) => {
           statusCode: 403,
           headers,
           body: JSON.stringify({ success: false, error: 'Authentication failed. Invalid serial key.' })
+        };
+      }
+
+      if (matched.status === 'suspended' || matched.status === 'payment_pending') {
+        return {
+          statusCode: 403,
+          headers,
+          body: JSON.stringify({ success: false, error: '⚠️ Account Suspended: Payment is pending. Contact developer.' })
         };
       }
 
@@ -272,6 +302,14 @@ exports.handler = async (event, context) => {
           statusCode: 403,
           headers,
           body: JSON.stringify({ success: false, error: 'Authentication failed. Invalid serial key.' })
+        };
+      }
+
+      if (matched.status === 'suspended' || matched.status === 'payment_pending') {
+        return {
+          statusCode: 403,
+          headers,
+          body: JSON.stringify({ success: false, error: '⚠️ Generation Blocked: Payment is pending. Please clear your balance with developer.' })
         };
       }
 

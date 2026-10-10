@@ -238,6 +238,20 @@ export function updateLicenseUI() {
   }
 
   if (userText) userText.textContent = license.username;
+  const isSuspended = license.status === 'suspended' || license.status === 'payment_pending';
+
+  if (isSuspended) {
+    if (quotaText) quotaText.textContent = '🔒 Payment Hold';
+    if (quotaPill) quotaPill.className = 'quota-pill exhausted';
+    if (exhaustedBanner) {
+      exhaustedBanner.style.display = 'block';
+      exhaustedBanner.innerHTML = '⚠️ <strong>Account On Hold:</strong> Payment is pending. Please contact developer to restore access.';
+    }
+    const genBtn = document.getElementById('gen-btn');
+    if (genBtn) genBtn.disabled = true;
+    return;
+  }
+
   const rem = license.remainingClicks ?? (license.totalClicks - (license.usedClicks || 0));
   const total = license.totalClicks || 100;
   if (quotaText) quotaText.textContent = `${rem} / ${total} clicks left`;
@@ -267,13 +281,21 @@ export async function syncLatestQuotaFromGitHub(showToast = false) {
       currentLicense.totalClicks = res.totalClicks;
       currentLicense.usedClicks = res.usedClicks;
       currentLicense.remainingClicks = res.remainingClicks;
+      currentLicense.status = res.status || 'active';
       saveActiveLicense(currentLicense);
       updateLicenseUI();
       if (showToast) {
         alert(`✅ Quota refreshed!\nTotal: ${currentLicense.totalClicks} clicks\nRemaining: ${currentLicense.remainingClicks} clicks left`);
       }
-    } else if (showToast) {
-      alert(`⚠️ ${res.error || 'Could not refresh quota'}`);
+    } else {
+      if (res.status === 'suspended' || (res.error && res.error.includes('Suspended'))) {
+        currentLicense.status = 'suspended';
+        saveActiveLicense(currentLicense);
+        updateLicenseUI();
+      }
+      if (showToast) {
+        alert(`⚠️ ${res.error || 'Could not refresh quota'}`);
+      }
     }
   } catch (err) {
     console.warn('Could not sync latest quota from server:', err);
@@ -322,6 +344,11 @@ function consumeClickQuota() {
 
   if (!license) {
     openLicenseModal(false, 'Activation Required', 'Please register with the Username and Serial Key provided by the developer.');
+    return false;
+  }
+
+  if (license.status === 'suspended' || license.status === 'payment_pending') {
+    alert('⚠️ Account Suspended: Payment is pending. Please contact the developer to restore your access.');
     return false;
   }
 

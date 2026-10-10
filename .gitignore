@@ -16,6 +16,7 @@ Thumbs.db
 *.apk
 *.exe
 *.pdf
+android/
 C:/PPSBuild/
 
 # Environment files

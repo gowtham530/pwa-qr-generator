@@ -150,14 +150,17 @@ export async function loadDashboardData() {
     const remaining = Math.max(0, total - used);
     const pct = total > 0 ? Math.min(100, Math.round((used / total) * 100)) : 0;
 
-    let badgeClass = 'badge-active';
-    let statusText = 'Active';
-    if (remaining === 0) {
-      badgeClass = 'badge-exhausted';
-      statusText = 'Exhausted (0 left)';
-    } else if (remaining <= 10) {
-      badgeClass = 'badge-low';
-      statusText = 'Low Quota';
+    const isSuspended = user.status === 'suspended' || user.status === 'payment_pending';
+    let badgeClass = isSuspended ? 'badge-exhausted' : 'badge-active';
+    let statusText = isSuspended ? '🔒 Payment Hold (Frozen)' : 'Active';
+    if (!isSuspended) {
+      if (remaining === 0) {
+        badgeClass = 'badge-exhausted';
+        statusText = 'Exhausted (0 left)';
+      } else if (remaining <= 10) {
+        badgeClass = 'badge-low';
+        statusText = 'Low Quota';
+      }
     }
 
     const tr = document.createElement('tr');
@@ -178,13 +181,18 @@ export async function loadDashboardData() {
         <div class="progress-mini"><div class="progress-mini-fill" style="width: ${pct}%"></div></div>
       </td>
       <td>
-        <span class="badge ${badgeClass}">${remaining} clicks left (${statusText})</span>
+        <span class="badge ${badgeClass}">${isSuspended ? '🔒 Payment Hold' : `${remaining} clicks left`} (${statusText})</span>
       </td>
       <td style="font-size:12px; color:#94a3b8;">
         ${formatDate(user.lastActive)}
       </td>
       <td>
         <div class="table-actions">
+          <button style="${isSuspended ? 'background:#10b981; color:#fff;' : 'background:#f59e0b; color:#000;'} border:none; padding:4px 8px; border-radius:6px; cursor:pointer; font-size:11px; font-weight:700;" 
+                  onclick="window.toggleUserSuspension('${key}')" 
+                  title="${isSuspended ? 'Unfreeze and reactivate user' : 'Freeze user due to pending payment'}">
+            ${isSuspended ? '🟢 Unfreeze' : '🔒 Hold'}
+          </button>
           <button class="btn-action-small" onclick="window.viewUserHistory('${key}')" title="View Batch History">📜 History</button>
           <button class="btn-action-renew" onclick="window.renewUser('${key}')" title="Generate New Serial & Renew Quota">🔄 Renewal</button>
           <button class="btn-action-danger" onclick="window.deleteUser('${key}')" title="Delete User">🗑️ Delete</button>
@@ -487,6 +495,34 @@ window.renewUser = async function(userKey) {
     alertMsg += `\n\n⚠️ Sync Notice: ${pushRes.error}`;
   }
   alert(alertMsg);
+  await loadDashboardData();
+};
+
+window.toggleUserSuspension = async function(userKey) {
+  const res = await fetchLicensesFromGitHub();
+  const licenses = res.data || { users: {} };
+  if (!licenses.users || !licenses.users[userKey]) {
+    alert(`User "${userKey}" not found.`);
+    return;
+  }
+  const u = licenses.users[userKey];
+  const isCurrentlySuspended = u.status === 'suspended' || u.status === 'payment_pending';
+  const newStatus = isCurrentlySuspended ? 'active' : 'suspended';
+
+  const actionName = isCurrentlySuspended ? 'UNFREEZE (Reactivate access)' : 'FREEZE (Payment Pending Hold)';
+  const confirmAction = confirm(
+    `Are you sure you want to ${actionName} user "${u.username || userKey}"?\n\n` +
+    (isCurrentlySuspended 
+      ? 'The user will immediately regain access to generate QRs.' 
+      : 'The user will immediately be BLOCKED from generating QRs until you unfreeze them!')
+  );
+  if (!confirmAction) return;
+
+  u.status = newStatus;
+  u.statusUpdatedAt = new Date().toISOString();
+
+  const pushRes = await pushLicensesToGitHub(licenses, `${newStatus === 'suspended' ? 'Freeze' : 'Unfreeze'} user ${u.username || userKey}`);
+  alert(`✅ User "${u.username || userKey}" is now ${newStatus === 'suspended' ? 'FROZEN (Blocked)' : 'ACTIVE (Allowed)'}!`);
   await loadDashboardData();
 };
 

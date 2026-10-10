@@ -1,4 +1,4 @@
-const CACHE_NAME = 'qr-generator-offline-v5';
+const CACHE_NAME = 'qr-generator-offline-v6';
 const PRECACHE_ASSETS = [
   './',
   './index.html',

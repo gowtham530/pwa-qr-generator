@@ -7,19 +7,16 @@
 
 const PRODUCTION_API_URL = 'https://genqr580.netlify.app/api/qr-service';
 
-// Detect whether we are in a mobile native wrapper (Capacitor) or in a web browser
+// Detect whether we are in a mobile native wrapper (Capacitor), GitHub Pages, or Netlify
 function getApiEndpoint() {
   if (typeof window !== 'undefined') {
-    // If running in Capacitor native app on Android/iOS (localhost origin), use production Netlify endpoint
-    if (window.location.hostname === 'localhost' && window.location.port === '') {
-      return PRODUCTION_API_URL;
-    }
-    // If running on custom domain or netlify domain, use relative /api/qr-service
-    if (window.location.hostname.endsWith('netlify.app') || window.location.hostname !== 'localhost') {
+    // When running directly on Netlify, use relative /api/qr-service
+    if (window.location.hostname.endsWith('netlify.app')) {
       return '/api/qr-service';
     }
   }
-  return '/api/qr-service';
+  // When running on GitHub Pages (gowtham530.github.io) or in Capacitor Android APK, use Netlify cloud API
+  return PRODUCTION_API_URL;
 }
 
 /**

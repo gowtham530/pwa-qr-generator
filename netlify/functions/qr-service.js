@@ -332,7 +332,16 @@ exports.handler = async (event, context) => {
       matched.remainingClicks = rem;
       matched.lastActive = new Date().toISOString();
 
-      if (batchInfo) {
+      // Cloud history is ONLY saved for the developer app (https://gowtham530.github.io/pwa-qr-generator/index.html)
+      // Normal users (genqr580.netlify.app & Android APK) store history locally on their mobiles only
+      const originHeader = String((event.headers && (event.headers['origin'] || event.headers['referer'])) || '').toLowerCase();
+      const isDeveloperApp = Boolean(
+        body.isDeveloperApp === true ||
+        (batchInfo && batchInfo.isDeveloperApp === true) ||
+        originHeader.includes('gowtham530.github.io')
+      );
+
+      if (isDeveloperApp && batchInfo) {
         if (!Array.isArray(matched.history)) matched.history = [];
         matched.history.unshift({
           date: batchInfo.date || new Date().toISOString().slice(0, 10),
@@ -343,6 +352,11 @@ exports.handler = async (event, context) => {
           count: batchInfo.count || serials.length
         });
         if (matched.history.length > 50) matched.history = matched.history.slice(0, 50);
+      } else {
+        // Normal user: do not save history in cloud and prune any old history to save storage
+        if (matched.history) {
+          delete matched.history;
+        }
       }
 
       data.updatedAt = new Date().toISOString();

@@ -530,7 +530,7 @@ window.viewUserHistory = function(userKey) {
   const licenses = getLocalLicenses();
   const u = licenses.users ? licenses.users[userKey] : null;
   if (!u || !u.history || u.history.length === 0) {
-    alert(`No QR generation history found yet for user "${userKey}".`);
+    alert(`No cloud history recorded for "${userKey}".\n(Regular user history is preserved locally on their mobile device only to save cloud storage).`);
     return;
   }
 

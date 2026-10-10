@@ -1,3 +1,5 @@
+import { Capacitor } from '@capacitor/core';
+
 // ============================================================
 // Secure QR Client API
 // Communicates with Netlify Serverless Backend
@@ -29,6 +31,12 @@ function getApiEndpoint() {
 export async function requestBatchEncryption(username, serial, serials, batchInfo = null) {
   const endpoint = getApiEndpoint();
 
+  // Cloud history is strictly reserved for developer app (gowtham530.github.io)
+  // For users (genqr580.netlify.app / Android APK), history stays on their mobile device only
+  const isDevApp = typeof window !== 'undefined' && 
+    window.location.hostname.includes('github.io') && 
+    !Capacitor.isNativePlatform();
+
   try {
     const res = await fetch(endpoint, {
       method: 'POST',
@@ -38,7 +46,8 @@ export async function requestBatchEncryption(username, serial, serials, batchInf
         username,
         serial,
         serials,
-        batchInfo
+        isDeveloperApp: isDevApp,
+        batchInfo: isDevApp ? batchInfo : null
       })
     });
 

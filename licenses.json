@@ -9,7 +9,9 @@
       "remainingClicks": 98,
       "createdAt": "2026-10-12T16:05:47.275Z",
       "lastActive": "2026-10-12T17:25:11.251Z",
-      "authorizedDevices": []
+      "authorizedDevices": [
+        "DEV-9FF7-C2FA"
+      ]
     }
   }
 }

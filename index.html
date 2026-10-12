@@ -191,30 +191,38 @@ label { font-size: 14px; color: var(--color-text-secondary); font-weight: 500; }
   border: 1px solid rgba(244, 63, 94, 0.4);
 }
 
-input {
+input, select {
   font-family: var(--font-main);
   font-size: 14px;
   padding: 10px 14px;
   border: 1px solid var(--color-border-glass);
   border-radius: var(--border-radius-md);
-  background: rgba(0, 0, 0, 0.25);
+  background: rgba(15, 23, 42, 0.85);
   color: var(--color-text-primary);
   outline: none;
   transition: all 0.2s;
 }
 
-input:focus {
+input:focus, select:focus {
   border-color: var(--color-accent-1);
   box-shadow: 0 0 0 2px rgba(14, 165, 233, 0.2);
 }
 
-input.input-invalid {
+input.input-invalid, select.input-invalid {
   border-color: var(--color-danger) !important;
   box-shadow: 0 0 0 2px rgba(244, 63, 94, 0.25) !important;
 }
 
-input.input-valid {
+input.input-valid, select.input-valid {
   border-color: var(--color-success) !important;
+}
+
+select option {
+  background: #0f172a;
+  color: #f8fafc;
+  font-family: var(--font-mono);
+  font-size: 13px;
+  padding: 10px;
 }
 
 input[type=number]::-webkit-inner-spin-button,
@@ -657,12 +665,18 @@ button.outline:hover:not(:disabled) {
 
     <div class="row" style="margin-top: 14px;">
       <div class="field" style="flex: 1.4; min-width: 220px;">
-        <div style="display: flex; justify-content: space-between; align-items: center;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
           <label for="target-device-id">📱 Authorized Viewer Device ID:</label>
           <span style="font-size: 11px; color: var(--color-accent-1);" id="device-helper-text">Authorized by Developer</span>
         </div>
-        <input type="text" id="target-device-id" list="authorized-devices-list" placeholder="e.g. DEV-DEMO-001" style="font-family:var(--font-mono);font-weight:600;letter-spacing:1px;text-transform:uppercase" autocomplete="off" spellcheck="false">
-        <datalist id="authorized-devices-list"></datalist>
+        <div style="position: relative;">
+          <select id="target-device-id" style="font-family:var(--font-mono);font-weight:600;letter-spacing:1px;width:100%;height:42px;background:rgba(15, 23, 42, 0.85);color:var(--color-text-primary);border:1px solid var(--color-border-glass);border-radius:var(--border-radius-md);padding:8px 12px;outline:none;cursor:pointer;">
+            <option value="" disabled selected>-- Loading Authorized Devices... --</option>
+          </select>
+        </div>
+        <div id="manual-device-wrapper" style="display: none; margin-top: 8px;">
+          <input type="text" id="manual-device-id" placeholder="Type Device ID (e.g. DEV-DEMO-001)" style="font-family:var(--font-mono);font-weight:600;letter-spacing:1px;text-transform:uppercase;width:100%;" autocomplete="off" spellcheck="false">
+        </div>
         <div class="field-err-text" id="device-id-err"></div>
       </div>
       <div class="field" style="flex: 1; min-width: 170px;">

@@ -288,15 +288,34 @@ export function updateLicenseUI() {
     }
   }
 
-  // Populate authorized devices list in dropdown & auto-fill input
-  const devList = document.getElementById('authorized-devices-list');
-  const devInput = document.getElementById('target-device-id');
-  if (license && Array.isArray(license.authorizedDevices) && license.authorizedDevices.length > 0) {
-    if (devList) {
-      devList.innerHTML = license.authorizedDevices.map(d => `<option value="${d}"></option>`).join('');
-    }
-    if (devInput && !devInput.value) {
-      devInput.value = license.authorizedDevices[0];
+  // Populate authorized devices select dropdown & auto-fill
+  const devSelect = document.getElementById('target-device-id');
+  const manualWrap = document.getElementById('manual-device-wrapper');
+
+  if (devSelect) {
+    const devices = (license && Array.isArray(license.authorizedDevices)) ? license.authorizedDevices : [];
+    const prevSelected = devSelect.value;
+
+    if (devices.length > 0) {
+      let optionsHtml = devices.map(d => `<option value="${d}">📱 ${d}</option>`).join('');
+      optionsHtml += `<option value="__custom__">✏️ Enter Other Device ID...</option>`;
+      devSelect.innerHTML = optionsHtml;
+
+      if (prevSelected && (devices.includes(prevSelected) || prevSelected === '__custom__')) {
+        devSelect.value = prevSelected;
+      } else {
+        devSelect.value = devices[0];
+      }
+      if (manualWrap) {
+        manualWrap.style.display = (devSelect.value === '__custom__') ? 'block' : 'none';
+      }
+    } else {
+      devSelect.innerHTML = `
+        <option value="" disabled>-- No Authorized Devices Found --</option>
+        <option value="__custom__" selected>✏️ Enter Device ID Manually...</option>
+      `;
+      devSelect.value = '__custom__';
+      if (manualWrap) manualWrap.style.display = 'block';
     }
   }
 }
@@ -1007,21 +1026,32 @@ export async function generateQRP() {
   }
 
   // 4. Validate Target Viewer Device ID
-  const devInput = document.getElementById('target-device-id');
+  const devSelect = document.getElementById('target-device-id');
+  const manualInput = document.getElementById('manual-device-id');
   const devErr = document.getElementById('device-id-err');
-  const targetDeviceId = (devInput?.value || '').trim().toUpperCase();
 
-  if (!targetDeviceId) {
+  let targetDeviceId = '';
+  if (devSelect && devSelect.value === '__custom__') {
+    targetDeviceId = (manualInput?.value || '').trim().toUpperCase();
+  } else if (devSelect) {
+    targetDeviceId = (devSelect.value || '').trim().toUpperCase();
+  }
+
+  if (!targetDeviceId || targetDeviceId === '__CUSTOM__') {
     if (devErr) devErr.textContent = '❌ Please enter or select Viewer Device ID';
-    if (devInput) {
-      devInput.classList.add('input-invalid');
-      devInput.focus();
+    if (devSelect && devSelect.value !== '__custom__') {
+      devSelect.classList.add('input-invalid');
+      devSelect.focus();
+    } else if (manualInput) {
+      manualInput.classList.add('input-invalid');
+      manualInput.focus();
     }
-    alert('❌ Viewer Device ID Required!\n\nPlease enter the authorized Viewer Device ID before generating the .QRP file.');
+    alert('❌ Viewer Device ID Required!\n\nPlease select or enter the authorized Viewer Device ID before generating the .QRP file.');
     return;
   }
   if (devErr) devErr.textContent = '';
-  if (devInput) devInput.classList.remove('input-invalid');
+  if (devSelect) devSelect.classList.remove('input-invalid');
+  if (manualInput) manualInput.classList.remove('input-invalid');
 
   // 5. Validate Click Quota First (1 tap = 1 click)
   const canProceed = consumeClickQuota();
@@ -1502,6 +1532,26 @@ window.addEventListener('DOMContentLoaded', () => {
   updateLicenseUI();
   syncLatestQuotaFromGitHub(false);
   renderQRHistoryUI();
+
+  // Attach Device ID select listener
+  const devSelect = document.getElementById('target-device-id');
+  const manualWrap = document.getElementById('manual-device-wrapper');
+  const manualInput = document.getElementById('manual-device-id');
+  if (devSelect) {
+    devSelect.addEventListener('change', () => {
+      if (devSelect.value === '__custom__') {
+        if (manualWrap) {
+          manualWrap.style.display = 'block';
+          manualInput?.focus();
+        }
+      } else {
+        if (manualWrap) manualWrap.style.display = 'none';
+      }
+      const devErr = document.getElementById('device-id-err');
+      if (devErr) devErr.textContent = '';
+      devSelect.classList.remove('input-invalid');
+    });
+  }
 
   // Attach UAN listeners
   const uanInput = document.getElementById('uan-pdf');

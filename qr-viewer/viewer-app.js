@@ -351,10 +351,22 @@ document.addEventListener('DOMContentLoaded', () => {
 
   // File Input Handler
   const fileInput = document.getElementById('file-input');
+  const btnOpenFile = document.getElementById('btn-open-file');
+
+  if (btnOpenFile && fileInput) {
+    btnOpenFile.addEventListener('click', (e) => {
+      // In case button is clicked directly
+      fileInput.click();
+    });
+  }
+
   if (fileInput) {
     fileInput.addEventListener('change', (e) => {
       const file = e.target.files && e.target.files[0];
-      if (file) loadQRPFile(file);
+      if (file) {
+        loadQRPFile(file);
+      }
+      fileInput.value = '';
     });
   }
 

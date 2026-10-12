@@ -834,10 +834,14 @@ export async function startPreview() {
   previewSerials = serials;
   currentPreviewIndex = 0;
 
-  document.getElementById('progress-pdf').style.display = 'none';
-  document.getElementById('info-pdf').style.display = 'none';
-  document.getElementById('stats-pdf').style.display = 'none';
-  document.getElementById('preview-pdf').style.display = 'block';
+  const progressPdf = document.getElementById('progress-pdf');
+  if (progressPdf) progressPdf.style.display = 'none';
+  const infoPdf = document.getElementById('info-pdf');
+  if (infoPdf) infoPdf.style.display = 'none';
+  const statsPdf = document.getElementById('stats-pdf');
+  if (statsPdf) statsPdf.style.display = 'none';
+  const previewEl = document.getElementById('preview-pdf');
+  if (previewEl) previewEl.style.display = 'block';
 
   await showPreviewQR(currentPreviewIndex);
 }
@@ -1071,16 +1075,30 @@ export async function generateQRP() {
   const activeLic = getActiveLicense();
   const username = activeLic ? activeLic.username : 'User';
 
-  // Show progress
-  document.getElementById('progress-pdf').style.display = 'block';
-  document.getElementById('info-pdf').style.display = 'block';
-  document.getElementById('stats-pdf').style.display = 'grid';
-  document.getElementById('preview-pdf').style.display = 'none';
+  // Show progress safely
+  const progressPdf = document.getElementById('progress-pdf');
+  if (progressPdf) progressPdf.style.display = 'block';
+  const progressFill = document.getElementById('progress-fill-pdf');
+  if (progressFill) progressFill.style.width = '10%';
+  const infoPdf = document.getElementById('info-pdf');
+  if (infoPdf) infoPdf.style.display = 'block';
+  const statsPdf = document.getElementById('stats-pdf');
+  if (statsPdf) statsPdf.style.display = 'grid';
+  const previewPdf = document.getElementById('preview-pdf');
+  if (previewPdf) previewPdf.style.display = 'none';
+  const successPdf = document.getElementById('success-pdf');
+  if (successPdf) successPdf.style.display = 'none';
+  const errPdf = document.getElementById('err-pdf');
+  if (errPdf) errPdf.textContent = '';
 
-  document.getElementById('s-total-pdf').textContent = count;
-  document.getElementById('s-pages-pdf').textContent = "1";
-  document.getElementById('s-per-page-pdf').textContent = count;
-  document.getElementById('gen-btn').disabled = true;
+  const sTotal = document.getElementById('s-total-pdf');
+  if (sTotal) sTotal.textContent = count;
+  const sPages = document.getElementById('s-pages-pdf');
+  if (sPages) sPages.textContent = "1";
+  const sPerPage = document.getElementById('s-per-page-pdf');
+  if (sPerPage) sPerPage.textContent = count;
+  const genBtn = document.getElementById('gen-btn');
+  if (genBtn) genBtn.disabled = true;
 
   try {
     document.getElementById('info-pdf').textContent = 'Connecting to secure server & verifying device authorization...';
@@ -1235,11 +1253,16 @@ export async function generateQRP() {
     `;
     document.getElementById('success-pdf').style.display = 'block';
   } catch (error) {
-    document.getElementById('err-pdf').textContent = error.message;
+    const errPdf = document.getElementById('err-pdf');
+    if (errPdf) errPdf.textContent = error.message;
     alert(`❌ Generation Failed:\n\n${error.message}`);
   } finally {
-    document.getElementById('gen-btn').disabled = false;
-    document.getElementById('info-pdf').style.display = 'none';
+    const genBtn = document.getElementById('gen-btn');
+    if (genBtn) genBtn.disabled = false;
+    const infoPdf = document.getElementById('info-pdf');
+    if (infoPdf) infoPdf.style.display = 'none';
+    const progressPdf = document.getElementById('progress-pdf');
+    if (progressPdf) progressPdf.style.display = 'none';
   }
 }
 
@@ -1387,10 +1410,14 @@ export async function generateSlideshowLink() {
   const activeLic = getActiveLicense();
   const username = activeLic ? activeLic.username : 'User';
 
-  document.getElementById('progress-pdf').style.display = 'block';
-  document.getElementById('preview-pdf').style.display = 'none';
-  document.getElementById('success-pdf').style.display = 'none';
-  document.getElementById('err-pdf').textContent = '';
+  const progressPdf = document.getElementById('progress-pdf');
+  if (progressPdf) progressPdf.style.display = 'block';
+  const previewPdf = document.getElementById('preview-pdf');
+  if (previewPdf) previewPdf.style.display = 'none';
+  const successPdf = document.getElementById('success-pdf');
+  if (successPdf) successPdf.style.display = 'none';
+  const errPdf = document.getElementById('err-pdf');
+  if (errPdf) errPdf.textContent = '';
   document.getElementById('gen-btn').disabled = true;
   const linkBtn = document.getElementById('link-btn');
   if (linkBtn) linkBtn.disabled = true;

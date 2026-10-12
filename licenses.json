@@ -1,14 +1,14 @@
 {
-  "updatedAt": "2026-10-12T17:37:42.663Z",
+  "updatedAt": "2026-10-12T18:07:11.501Z",
   "users": {
     "ashu": {
       "username": "ashu",
       "serial": "7585709820",
       "totalClicks": 100,
-      "usedClicks": 3,
-      "remainingClicks": 97,
+      "usedClicks": 4,
+      "remainingClicks": 96,
       "createdAt": "2026-10-12T16:05:47.275Z",
-      "lastActive": "2026-10-12T17:37:42.663Z",
+      "lastActive": "2026-10-12T18:07:11.501Z",
       "authorizedDevices": [
         "DEV-5601-5202"
       ]

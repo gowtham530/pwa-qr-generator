@@ -688,8 +688,7 @@ button.outline:hover:not(:disabled) {
     </div>
 
     <div class="actions-row" style="display: flex; gap: 8px; justify-content: flex-end; margin-top: 16px;">
-      <button id="preview-btn" class="outline" onclick="startPreview()">Preview</button>
-      <button id="gen-btn" onclick="generateQRP()" style="background: linear-gradient(135deg, #0ea5e9, #8b5cf6); font-weight: 700; color: #fff; box-shadow: 0 4px 14px rgba(14, 165, 233, 0.4);">📦 Generate .QRP File</button>
+      <button id="gen-btn" onclick="generateQRP()" style="background: linear-gradient(135deg, #0ea5e9, #8b5cf6); font-weight: 700; color: #fff; box-shadow: 0 4px 14px rgba(14, 165, 233, 0.4); width: 100%; height: 46px; font-size: 16px; justify-content: center;">📦 Generate .QRP File</button>
     </div>
     <div class="err" id="err-pdf"></div>
     <div class="progress-bar" id="progress-pdf" style="display:none">
@@ -705,18 +704,7 @@ button.outline:hover:not(:disabled) {
   </div>
 
   <div class="info" id="info-pdf" style="display:none">
-    ℹ️ PDF is being generated in your browser. This may take 60-90 seconds for 580 codes.
-  </div>
-
-  <div class="preview" id="preview-pdf" style="display:none; text-align: center;">
-    <div class="preview-title" id="preview-title">📋 QR Code Preview</div>
-    <div style="display: flex; align-items: center; justify-content: center; gap: 20px;">
-      <button id="prev-btn" class="nav-btn" onclick="navigatePreview(-1)">&lt;</button>
-      <div id="preview-single-qr"></div>
-      <button id="next-btn" class="nav-btn" onclick="navigatePreview(1)">&gt;</button>
-    </div>
-    <div style="margin-top: 12px; font-weight: 500; font-size: 16px;" id="preview-serial-text"></div>
-    <div style="margin-top: 4px; font-size: 13px; color: var(--color-text-secondary);" id="preview-count-text"></div>
+    ℹ️ Generating encrypted package with 24-hr network expiry...
   </div>
 
   <!-- DAY-WISE QR GENERATION HISTORY -->

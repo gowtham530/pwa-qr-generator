@@ -10,7 +10,9 @@
       "createdAt": "2026-10-12T16:05:47.275Z",
       "lastActive": null,
       "history": [],
-      "authorizedDevices": []
+      "authorizedDevices": [
+        "DEV-8B40-AC5B"
+      ]
     }
   }
 }

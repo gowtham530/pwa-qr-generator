@@ -56,26 +56,100 @@ async function getLicensesFromGitHub() {
   };
 }
 
-// Helper: Save updated licenses.json back to GitHub
+// Helper: Save updated licenses.json back to GitHub with conflict retry
 async function saveLicensesToGitHub(data, sha, message) {
+  const token = getGitHubToken();
+  if (!token) {
+    console.error('saveLicensesToGitHub: No GITHUB_TOKEN configured');
+    return false;
+  }
+
   const url = `https://api.github.com/repos/${GITHUB_OWNER}/${GITHUB_REPO}/contents/${GITHUB_FILE_PATH}`;
+  let currentSha = sha;
+
+  // If no sha provided, fetch it first
+  if (!currentSha) {
+    try {
+      const getRes = await fetch(`${url}?ref=${GITHUB_BRANCH}&_t=${Date.now()}`, {
+        headers: {
+          'Accept': 'application/vnd.github.v3+json',
+          'Authorization': `Bearer ${token}`,
+          'User-Agent': 'Netlify-QR-Service'
+        }
+      });
+      if (getRes.ok) {
+        const getJson = await getRes.json();
+        currentSha = getJson.sha;
+      }
+    } catch (e) {}
+  }
+
   const content = Buffer.from(JSON.stringify(data, null, 2), 'utf8').toString('base64');
   
-  const res = await fetch(url, {
+  let res = await fetch(url, {
     method: 'PUT',
     headers: {
       'Accept': 'application/vnd.github.v3+json',
-      'Authorization': `Bearer ${getGitHubToken()}`,
+      'Authorization': `Bearer ${token}`,
       'Content-Type': 'application/json',
       'User-Agent': 'Netlify-QR-Service'
     },
     body: JSON.stringify({
       message: message || 'Auto-record QR generation click & history',
       content: content,
-      sha: sha,
+      sha: currentSha,
       branch: GITHUB_BRANCH
     })
   });
+
+  // If conflict (409 or 422), refetch latest SHA and re-merge user click
+  if (res.status === 409 || res.status === 422) {
+    try {
+      const freshRes = await fetch(`${url}?ref=${GITHUB_BRANCH}&_t=${Date.now()}`, {
+        headers: {
+          'Accept': 'application/vnd.github.v3+json',
+          'Authorization': `Bearer ${token}`,
+          'User-Agent': 'Netlify-QR-Service'
+        }
+      });
+      if (freshRes.ok) {
+        const freshJson = await freshRes.json();
+        const freshContent = Buffer.from(freshJson.content, 'base64').toString('utf8');
+        const freshData = JSON.parse(freshContent);
+        // Merge this user's latest click state into fresh data
+        Object.keys(data.users || {}).forEach(k => {
+          if (!freshData.users) freshData.users = {};
+          if (freshData.users[k]) {
+            freshData.users[k].usedClicks = data.users[k].usedClicks;
+            freshData.users[k].remainingClicks = data.users[k].remainingClicks;
+            freshData.users[k].lastActive = data.users[k].lastActive;
+          } else {
+            freshData.users[k] = data.users[k];
+          }
+        });
+        freshData.updatedAt = new Date().toISOString();
+        const retryContent = Buffer.from(JSON.stringify(freshData, null, 2), 'utf8').toString('base64');
+
+        res = await fetch(url, {
+          method: 'PUT',
+          headers: {
+            'Accept': 'application/vnd.github.v3+json',
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json',
+            'User-Agent': 'Netlify-QR-Service'
+          },
+          body: JSON.stringify({
+            message: message || 'Auto-record QR generation click & history',
+            content: retryContent,
+            sha: freshJson.sha,
+            branch: GITHUB_BRANCH
+          })
+        });
+      }
+    } catch (retryErr) {
+      console.warn('Retry save error:', retryErr);
+    }
+  }
 
   if (!res.ok) {
     const errText = await res.text();
@@ -394,10 +468,12 @@ exports.handler = async (event, context) => {
 
       data.updatedAt = new Date().toISOString();
 
-      // Save asynchronously in background so client gets fast response
-      saveLicensesToGitHub(data, sha, `Record click for ${username} (remaining: ${rem})`).catch(e => {
-        console.error('Async GitHub save error:', e);
-      });
+      // AWAIT saving to GitHub so the Lambda container does not terminate before the commit lands!
+      try {
+        await saveLicensesToGitHub(data, sha, `Record click for ${username} (used: ${used}, remaining: ${rem})`);
+      } catch (saveErr) {
+        console.error('Error saving updated click quota to GitHub:', saveErr);
+      }
 
       // Encrypt all serials with the server's private AES key
       const encrypted = serials.map(s => encryptAESGCM(s));

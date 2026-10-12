@@ -88,7 +88,24 @@ export function initAdminDashboard() {
   setupSettingsModal();
   // Generator form handlers
   setupGeneratorForm();
+
+  // Auto-refresh admin dashboard data every 12 seconds
+  setInterval(() => {
+    if (isDeveloperAuthenticated() && document.visibilityState === 'visible') {
+      loadDashboardData();
+    }
+  }, 12000);
 }
+
+window.recheckGitHubClicks = async function() {
+  const syncStatus = document.getElementById('sync-status-indicator');
+  if (syncStatus) {
+    syncStatus.textContent = '🔄 Refreshing data from GitHub...';
+    syncStatus.style.color = '#38bdf8';
+  }
+  await loadDashboardData();
+  alert('✅ Clicks quota data successfully refreshed from GitHub!');
+};
 
 // Load and Render Users Table
 export async function loadDashboardData() {

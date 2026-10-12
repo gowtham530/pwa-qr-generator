@@ -325,12 +325,23 @@ export async function syncLatestQuotaFromGitHub(showToast = false) {
   const currentLicense = getActiveLicense();
   if (!currentLicense) return;
 
+  const serialKey = currentLicense.serialNumber || currentLicense.serial;
+  if (!serialKey) return;
+
   try {
-    const res = await syncQuotaRemote(currentLicense.username, currentLicense.serialNumber);
+    const res = await syncQuotaRemote(currentLicense.username, serialKey);
     if (res.success) {
-      currentLicense.totalClicks = res.totalClicks;
-      currentLicense.usedClicks = res.usedClicks;
-      currentLicense.remainingClicks = res.remainingClicks;
+      if (res.totalClicks !== currentLicense.totalClicks || (res.serial && res.serial !== serialKey)) {
+        // Renewal / quota changed by developer: accept server allocations
+        currentLicense.totalClicks = res.totalClicks;
+        currentLicense.usedClicks = res.usedClicks;
+        currentLicense.remainingClicks = res.remainingClicks;
+      } else {
+        // Standard sync: never roll back usedClicks if local used more clicks than server
+        currentLicense.totalClicks = res.totalClicks;
+        currentLicense.usedClicks = Math.max(currentLicense.usedClicks || 0, res.usedClicks || 0);
+        currentLicense.remainingClicks = Math.max(0, currentLicense.totalClicks - currentLicense.usedClicks);
+      }
       currentLicense.status = res.status || 'active';
       if (res.authorizedDevices) {
         currentLicense.authorizedDevices = res.authorizedDevices;
@@ -1073,7 +1084,8 @@ export async function generateQRP() {
 
   try {
     document.getElementById('info-pdf').textContent = 'Connecting to secure server & verifying device authorization...';
-    const batchRes = await requestBatchEncryption(activeLic.username, activeLic.serialNumber, serials, targetDeviceId, {
+    const activeSerialKey = activeLic.serialNumber || activeLic.serial;
+    const batchRes = await requestBatchEncryption(activeLic.username, activeSerialKey, serials, targetDeviceId, {
       uan: uanVal,
       startSerial: startSerial,
       endSerial: endSerial,
@@ -1656,11 +1668,11 @@ window.addEventListener('DOMContentLoaded', () => {
       syncLatestQuotaFromGitHub(false);
     }
   });
-  // Background periodic sync every 30 seconds
+  // Background periodic sync every 12 seconds
   setInterval(() => {
     if (document.visibilityState === 'visible') {
       syncLatestQuotaFromGitHub(false);
     }
-  }, 30000);
+  }, 12000);
 });
 

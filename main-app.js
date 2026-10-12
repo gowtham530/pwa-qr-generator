@@ -873,6 +873,83 @@ function yieldToEventLoop() {
   return new Promise(r => setTimeout(r, 0));
 }
 
+let currentQRPRecord = null;
+
+export async function downloadQRPDirect() {
+  if (!currentQRPRecord) {
+    alert('No active QRP file available. Please generate a batch first.');
+    return;
+  }
+  const { fileName, content } = currentQRPRecord;
+
+  // 1. Direct browser / webview download
+  try {
+    const blob = new Blob([content], { type: 'application/octet-stream' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = fileName;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  } catch (e) {
+    console.warn('Web download error:', e);
+  }
+
+  // 2. Native filesystem write to public Documents
+  if (Capacitor.isNativePlatform()) {
+    try {
+      const base64Data = btoa(unescape(encodeURIComponent(content)));
+      await Filesystem.writeFile({
+        path: fileName,
+        data: base64Data,
+        directory: Directory.Documents,
+        recursive: true
+      });
+      alert(`✅ File "${fileName}" saved to your device's Documents! You can find it in your File Manager or upload it to Google Drive.`);
+    } catch (fsErr) {
+      alert(`✅ Download triggered for "${fileName}". Check your notification bar or Downloads folder.`);
+    }
+  } else {
+    alert(`✅ Downloading "${fileName}" to your device!`);
+  }
+}
+
+export async function shareQRPDirect() {
+  if (!currentQRPRecord) {
+    alert('No active QRP file available. Please generate a batch first.');
+    return;
+  }
+  const { fileName, uri, content, uan, targetDeviceId } = currentQRPRecord;
+
+  if (Capacitor.isNativePlatform() && uri) {
+    try {
+      await Share.share({
+        title: fileName,
+        text: `Secure Mill QR Package: ${fileName} (Locked to ${targetDeviceId})`,
+        url: uri,
+        dialogTitle: 'Save to Drive or Share with Assistant'
+      });
+    } catch (err) {
+      console.warn('Native share dialog cancelled or failed:', err);
+    }
+  } else if (navigator.share && navigator.canShare) {
+    try {
+      const file = new File([content], fileName, { type: 'application/octet-stream' });
+      await navigator.share({
+        title: fileName,
+        text: `Secure Mill QR Package for UAN ${uan}`,
+        files: [file]
+      });
+    } catch (err) {
+      downloadQRPDirect();
+    }
+  } else {
+    downloadQRPDirect();
+  }
+}
+
 // ============================================================
 //  6. Secure .QRP Package Generation (Consumes 1 Click per tap, Syncs to GitHub)
 // ============================================================
@@ -1028,17 +1105,16 @@ export async function generateQRP() {
     // File name: UAN.qrp
     const safeUan = uanVal.replace(/[/\\?%*:|"<>]/g, '_');
     const fileName = `${safeUan}.qrp`;
+    const base64Data = btoa(unescape(encodeURIComponent(qrpContent)));
+
+    let writeResult = null;
+    let saveLocation = 'Device Documents';
 
     if (Capacitor.isNativePlatform()) {
       document.getElementById('info-pdf').textContent = 'Saving .QRP file on device...';
       try {
         await Filesystem.requestPermissions();
       } catch (permErr) {}
-
-      // Convert utf8 string to base64
-      const base64Data = btoa(unescape(encodeURIComponent(qrpContent)));
-      let writeResult;
-      let saveLocation = 'Documents';
 
       try {
         writeResult = await Filesystem.writeFile({
@@ -1049,37 +1125,20 @@ export async function generateQRP() {
         });
       } catch (docErr) {
         saveLocation = 'App Storage';
-        writeResult = await Filesystem.writeFile({
-          path: fileName,
-          data: base64Data,
-          directory: Directory.Cache,
-          recursive: true
-        });
+        try {
+          writeResult = await Filesystem.writeFile({
+            path: fileName,
+            data: base64Data,
+            directory: Directory.Cache,
+            recursive: true
+          });
+        } catch (cacheErr) {}
       }
+    }
 
-      try {
-        await Share.share({
-          title: fileName,
-          text: `Secure Mill QR Package for UAN ${uanVal} (Valid 24h on ${targetDeviceId})`,
-          url: writeResult.uri,
-          dialogTitle: 'Share .QRP to Mill Assistant'
-        });
-      } catch (shareErr) {
-        console.warn('Share dialog cancelled:', shareErr);
-      }
-
-      document.getElementById('progress-fill-pdf').style.width = '100%';
-      document.getElementById('progress-pdf').style.display = 'none';
-      document.getElementById('success-pdf').innerHTML = `
-        <div style="font-size:15px; font-weight:700;">✅ .QRP File Generated & Saved!</div>
-        <div style="font-size:13px; margin-top:4px;">📄 File: <strong>${fileName}</strong></div>
-        <div style="font-size:12px; color:#38bdf8; margin-top:2px;">📱 Locked to Device: <strong>${targetDeviceId}</strong></div>
-        <div style="font-size:12px; color:#10b981; margin-top:2px;">⏱️ Valid for 24 Hours from now</div>
-      `;
-      document.getElementById('success-pdf').style.display = 'block';
-    } else {
-      // Browser Web Download
-      const blob = new Blob([qrpContent], { type: 'application/json' });
+    // Always trigger direct file download/save in the browser / device
+    try {
+      const blob = new Blob([qrpContent], { type: 'application/octet-stream' });
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
@@ -1087,18 +1146,52 @@ export async function generateQRP() {
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
-      URL.revokeObjectURL(url);
-
-      document.getElementById('progress-fill-pdf').style.width = '100%';
-      document.getElementById('progress-pdf').style.display = 'none';
-      document.getElementById('success-pdf').innerHTML = `
-        <div style="font-size:15px; font-weight:700;">✅ .QRP File Downloaded!</div>
-        <div style="font-size:13px; margin-top:4px;">📄 File: <strong>${fileName}</strong></div>
-        <div style="font-size:12px; color:#38bdf8; margin-top:2px;">📱 Locked to Device: <strong>${targetDeviceId}</strong></div>
-        <div style="font-size:12px; color:#10b981; margin-top:2px;">⏱️ Valid for 24 Hours from now</div>
-      `;
-      document.getElementById('success-pdf').style.display = 'block';
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+    } catch (dlErr) {
+      console.warn('Direct download trigger notice:', dlErr);
     }
+
+    // Cache current QRP record for direct 1-tap re-download or share
+    currentQRPRecord = {
+      fileName: fileName,
+      content: qrpContent,
+      base64Data: base64Data,
+      uri: writeResult ? writeResult.uri : null,
+      uan: uanVal,
+      targetDeviceId: targetDeviceId
+    };
+
+    // If native platform, automatically prompt share sheet with Drive / WhatsApp
+    if (Capacitor.isNativePlatform() && writeResult?.uri) {
+      try {
+        await Share.share({
+          title: fileName,
+          text: `Secure Mill QR Package: ${fileName} (Valid 24h on ${targetDeviceId})`,
+          url: writeResult.uri,
+          dialogTitle: 'Save to Drive or Share with Assistant'
+        });
+      } catch (shareErr) {
+        console.warn('Share dialog cancelled or closed:', shareErr);
+      }
+    }
+
+    document.getElementById('progress-fill-pdf').style.width = '100%';
+    document.getElementById('progress-pdf').style.display = 'none';
+    document.getElementById('success-pdf').innerHTML = `
+      <div style="font-size:15px; font-weight:700;">✅ .QRP File Generated & Saved!</div>
+      <div style="font-size:13px; margin-top:4px;">📄 File: <strong>${fileName}</strong></div>
+      <div style="font-size:12px; color:#38bdf8; margin-top:2px;">📱 Locked to Device: <strong>${targetDeviceId}</strong></div>
+      <div style="font-size:12px; color:#10b981; margin-top:2px;">⏱️ Valid for 24 Hours from now</div>
+      <div style="display:flex; gap:10px; margin-top:14px; justify-content:center; flex-wrap:wrap;">
+        <button onclick="window.downloadQRPDirect()" class="btn-primary" style="background:linear-gradient(135deg, #10b981, #059669); height:42px; font-size:13px; padding:0 16px; border-radius:10px; cursor:pointer; font-weight:700; display:inline-flex; align-items:center; gap:6px; box-shadow:0 4px 12px rgba(16,185,129,0.3);">
+          💾 Save to Drive / Device
+        </button>
+        <button onclick="window.shareQRPDirect()" class="btn-primary" style="background:linear-gradient(135deg, #0ea5e9, #6366f1); height:42px; font-size:13px; padding:0 16px; border-radius:10px; cursor:pointer; font-weight:700; display:inline-flex; align-items:center; gap:6px; box-shadow:0 4px 12px rgba(14,165,233,0.3);">
+          📤 Share (WhatsApp / Drive)
+        </button>
+      </div>
+    `;
+    document.getElementById('success-pdf').style.display = 'block';
   } catch (error) {
     document.getElementById('err-pdf').textContent = error.message;
     alert(`❌ Generation Failed:\n\n${error.message}`);
@@ -1392,6 +1485,8 @@ if ('serviceWorker' in navigator) {
 window.startPreview = startPreview;
 window.generateQRP = generateQRP;
 window.generatePDF = generateQRP;
+window.downloadQRPDirect = downloadQRPDirect;
+window.shareQRPDirect = shareQRPDirect;
 window.generateSlideshowLink = generateSlideshowLink;
 window.navigatePreview = navigatePreview;
 window.openLicenseModal = openLicenseModal;

@@ -287,6 +287,18 @@ export function updateLicenseUI() {
       }
     }
   }
+
+  // Populate authorized devices list in dropdown & auto-fill input
+  const devList = document.getElementById('authorized-devices-list');
+  const devInput = document.getElementById('target-device-id');
+  if (license && Array.isArray(license.authorizedDevices) && license.authorizedDevices.length > 0) {
+    if (devList) {
+      devList.innerHTML = license.authorizedDevices.map(d => `<option value="${d}"></option>`).join('');
+    }
+    if (devInput && !devInput.value) {
+      devInput.value = license.authorizedDevices[0];
+    }
+  }
 }
 
 // Automatically sync latest quota from server for active user
@@ -301,6 +313,9 @@ export async function syncLatestQuotaFromGitHub(showToast = false) {
       currentLicense.usedClicks = res.usedClicks;
       currentLicense.remainingClicks = res.remainingClicks;
       currentLicense.status = res.status || 'active';
+      if (res.authorizedDevices) {
+        currentLicense.authorizedDevices = res.authorizedDevices;
+      }
       saveActiveLicense(currentLicense);
       updateLicenseUI();
       if (showToast) {
@@ -345,9 +360,11 @@ export async function activateLicense(username, serialKey) {
       usedClicks: res.license.usedClicks,
       remainingClicks: res.license.remainingClicks,
       serialNumber: cleanKey,
+      authorizedDevices: res.license.authorizedDevices || [],
       activatedAt: Date.now()
     };
     saveActiveLicense(licenseRecord);
+    updateLicenseUI();
     return { success: true, license: licenseRecord };
   }
 
@@ -857,9 +874,9 @@ function yieldToEventLoop() {
 }
 
 // ============================================================
-//  6. PDF Generation (Consumes 1 Click per tap, Syncs to GitHub)
+//  6. Secure .QRP Package Generation (Consumes 1 Click per tap, Syncs to GitHub)
 // ============================================================
-export async function generatePDF() {
+export async function generateQRP() {
   const serials = getSelectedSerials();
   if (!serials) return;
   const count = serials.length;
@@ -878,7 +895,7 @@ export async function generatePDF() {
       uanInput.classList.add('input-invalid');
       uanInput.focus();
     }
-    alert('❌ UAN Number Required!\n\nPlease enter the UAN Number before generating the PDF.');
+    alert('❌ UAN Number Required!\n\nPlease enter the UAN Number before generating the .QRP file.');
     return;
   }
 
@@ -912,7 +929,24 @@ export async function generatePDF() {
     return;
   }
 
-  // 4. Validate Click Quota First (Requirement 6 & 7: 1 tap = 1 click)
+  // 4. Validate Target Viewer Device ID
+  const devInput = document.getElementById('target-device-id');
+  const devErr = document.getElementById('device-id-err');
+  const targetDeviceId = (devInput?.value || '').trim().toUpperCase();
+
+  if (!targetDeviceId) {
+    if (devErr) devErr.textContent = '❌ Please enter or select Viewer Device ID';
+    if (devInput) {
+      devInput.classList.add('input-invalid');
+      devInput.focus();
+    }
+    alert('❌ Viewer Device ID Required!\n\nPlease enter the authorized Viewer Device ID before generating the .QRP file.');
+    return;
+  }
+  if (devErr) devErr.textContent = '';
+  if (devInput) devInput.classList.remove('input-invalid');
+
+  // 5. Validate Click Quota First (1 tap = 1 click)
   const canProceed = consumeClickQuota();
   if (!canProceed) return;
 
@@ -925,90 +959,57 @@ export async function generatePDF() {
   document.getElementById('stats-pdf').style.display = 'grid';
   document.getElementById('preview-pdf').style.display = 'none';
 
-  const codesPerPage = 20;
-  const numPages = Math.ceil(count / codesPerPage);
   document.getElementById('s-total-pdf').textContent = count;
-  document.getElementById('s-pages-pdf').textContent = numPages;
+  document.getElementById('s-pages-pdf').textContent = "1";
+  document.getElementById('s-per-page-pdf').textContent = count;
   document.getElementById('gen-btn').disabled = true;
 
   try {
-    document.getElementById('info-pdf').textContent = 'Connecting to secure server for cryptographic generation...';
-    const batchRes = await requestBatchEncryption(activeLic.username, activeLic.serialNumber, serials, {
+    document.getElementById('info-pdf').textContent = 'Connecting to secure server & verifying device authorization...';
+    const batchRes = await requestBatchEncryption(activeLic.username, activeLic.serialNumber, serials, targetDeviceId, {
       uan: uanVal,
       startSerial: startSerial,
       endSerial: endSerial,
       count: count
     });
+
     const encryptedSerials = batchRes.encrypted;
     activeLic.usedClicks = batchRes.usedClicks;
     activeLic.remainingClicks = batchRes.remainingClicks;
     saveActiveLicense(activeLic);
 
-    const pdf = new jsPDF({orientation: 'portrait', unit: 'mm', format: 'a4'});
+    document.getElementById('info-pdf').textContent = 'Building encrypted .QRP package with 24-hr network expiry...';
+    document.getElementById('progress-fill-pdf').style.width = '70%';
 
-    const pageWidth = 210;
-    const pageHeight = 297;
-    const margin = 15;
-    const cols = 4;
-    const rows = 5;
-    const horizontalSpacing = 15;
-    const verticalSpacing = 12;
-    const qrWidth = (pageWidth - 2 * margin - (cols - 1) * horizontalSpacing) / cols;
-    const qrHeight = qrWidth + 8;
+    const nowTime = batchRes.serverTime || Date.now();
+    const expiresAt = batchRes.expiresAt || (nowTime + 24 * 60 * 60 * 1000);
 
-    let codeIdx = 0;
+    // Build the secure QRP data structure
+    const qrpData = {
+      magic: 'QRP580',
+      version: '1.0',
+      fileId: `${uanVal}-${nowTime}`,
+      uan: uanVal,
+      startSerial: startSerial,
+      endSerial: endSerial,
+      count: count,
+      targetDeviceId: batchRes.targetDeviceId || targetDeviceId,
+      serverTime: nowTime,
+      expiresAt: expiresAt,
+      validHours: 24,
+      items: serials.map((s, idx) => ({
+        index: idx + 1,
+        serial: s,
+        encrypted: encryptedSerials[idx],
+        label: `${idx + 1} - ${s}`
+      }))
+    };
 
-    for (let pageNum = 0; pageNum < numPages; pageNum++) {
-      if (pageNum > 0) pdf.addPage();
-
-      // Header with UAN Number
-      pdf.setFontSize(11);
-      pdf.text(`Random Encrypted QR Codes - UAN: ${uanVal} - Page ${pageNum + 1} of ${numPages}`, margin, margin);
-
-      let yPos = margin + 12;
-
-      for (let row = 0; row < rows && codeIdx < serials.length; row++) {
-        for (let col = 0; col < cols && codeIdx < serials.length; col++) {
-          const serial = serials[codeIdx];
-          const encrypted = encryptedSerials[codeIdx];
-
-          const qrDataUrl = await QRCode.toDataURL(encrypted, {
-            errorCorrectionLevel: 'H',
-            width: 120,
-            margin: 0,
-            type: 'image/jpeg',
-            rendererOpts: { quality: 0.75 }
-          });
-
-          if (codeIdx % 5 === 0) {
-            await yieldToEventLoop();
-          }
-
-          const xPos = margin + col * (qrWidth + horizontalSpacing);
-          const yPosQR = yPos + row * (qrHeight + verticalSpacing);
-
-          pdf.addImage(qrDataUrl, 'JPEG', xPos, yPosQR, qrWidth, qrWidth, undefined, 'FAST');
-
-          // Label
-          pdf.setFontSize(6);
-          const label = `${serial}`;
-          pdf.text(label, xPos + (qrWidth/2), yPosQR + qrWidth + 3, {align: 'center', maxWidth: qrWidth + horizontalSpacing});
-
-          codeIdx++;
-
-          const progress = (codeIdx / serials.length) * 100;
-          document.getElementById('progress-fill-pdf').style.width = progress + '%';
-        }
-      }
-
-      // Footer with UAN Number
-      pdf.setFontSize(7);
-      pdf.text(`UAN: ${uanVal} | Codes ${pageNum * codesPerPage + 1} - ${Math.min((pageNum + 1) * codesPerPage, serials.length)}`, margin, pageHeight - 5);
-      pdf.text('PPS Random QR Generator', pageWidth - margin - 30, pageHeight - 5);
-    }
+    const qrpContent = JSON.stringify(qrpData, null, 2);
+    document.getElementById('progress-fill-pdf').style.width = '95%';
 
     // Record Batch into Day-Wise History (saved with UAN Number)
-    const now = new Date();
+    const now = new Date(nowTime);
     const batchRecord = {
       id: 'batch_' + Date.now(),
       timestamp: Date.now(),
@@ -1019,82 +1020,91 @@ export async function generatePDF() {
       startSerial: startSerial,
       endSerial: endSerial,
       count: count,
-      username: username
+      username: username,
+      targetDeviceId: targetDeviceId
     };
     saveQRHistoryBatch(batchRecord);
 
-    // File Download Logic: Renamed with this UAN Number only
+    // File name: UAN.qrp
     const safeUan = uanVal.replace(/[/\\?%*:|"<>]/g, '_');
-    const fileName = `${safeUan}.pdf`;
+    const fileName = `${safeUan}.qrp`;
 
     if (Capacitor.isNativePlatform()) {
-      document.getElementById('info-pdf').textContent = 'Preparing native file download...';
-      await new Promise(r => setTimeout(r, 100));
-
+      document.getElementById('info-pdf').textContent = 'Saving .QRP file on device...';
       try {
         await Filesystem.requestPermissions();
-      } catch (permErr) {
-        console.warn('Filesystem permissions request warning:', permErr);
-      }
+      } catch (permErr) {}
 
-      const pdfBlob = pdf.output('blob');
-      const pdfBase64 = await new Promise((resolve, reject) => {
-        const reader = new FileReader();
-        reader.onloadend = () => {
-          const res = reader.result;
-          resolve(res.substring(res.indexOf(',') + 1));
-        };
-        reader.onerror = reject;
-        reader.readAsDataURL(pdfBlob);
-      });
-
+      // Convert utf8 string to base64
+      const base64Data = btoa(unescape(encodeURIComponent(qrpContent)));
       let writeResult;
-      let saveLocation = 'Documents (Mobile Drive)';
+      let saveLocation = 'Documents';
 
       try {
         writeResult = await Filesystem.writeFile({
           path: fileName,
-          data: pdfBase64,
+          data: base64Data,
           directory: Directory.Documents,
           recursive: true
         });
       } catch (docErr) {
-        console.warn('Could not write to Documents directory, falling back to Cache:', docErr);
         saveLocation = 'App Storage';
         writeResult = await Filesystem.writeFile({
           path: fileName,
-          data: pdfBase64,
+          data: base64Data,
           directory: Directory.Cache,
           recursive: true
         });
       }
 
-      await new Promise(r => setTimeout(r, 200));
-
       try {
         await Share.share({
           title: fileName,
-          text: `QR Codes PDF (${count} codes)`,
+          text: `Secure Mill QR Package for UAN ${uanVal} (Valid 24h on ${targetDeviceId})`,
           url: writeResult.uri,
-          dialogTitle: 'Save or Share PDF'
+          dialogTitle: 'Share .QRP to Mill Assistant'
         });
       } catch (shareErr) {
-        console.warn('Share dialog cancelled or failed:', shareErr);
+        console.warn('Share dialog cancelled:', shareErr);
       }
 
+      document.getElementById('progress-fill-pdf').style.width = '100%';
       document.getElementById('progress-pdf').style.display = 'none';
-      document.getElementById('success-pdf').textContent = `✅ PDF saved to ${saveLocation}! (${count} QR codes, ${numPages} pages)`;
+      document.getElementById('success-pdf').innerHTML = `
+        <div style="font-size:15px; font-weight:700;">✅ .QRP File Generated & Saved!</div>
+        <div style="font-size:13px; margin-top:4px;">📄 File: <strong>${fileName}</strong></div>
+        <div style="font-size:12px; color:#38bdf8; margin-top:2px;">📱 Locked to Device: <strong>${targetDeviceId}</strong></div>
+        <div style="font-size:12px; color:#10b981; margin-top:2px;">⏱️ Valid for 24 Hours from now</div>
+      `;
       document.getElementById('success-pdf').style.display = 'block';
     } else {
-      pdf.save(fileName);
+      // Browser Web Download
+      const blob = new Blob([qrpContent], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = fileName;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+
+      document.getElementById('progress-fill-pdf').style.width = '100%';
       document.getElementById('progress-pdf').style.display = 'none';
-      document.getElementById('success-pdf').textContent = `✅ PDF generated successfully! (${count} QR codes, ${numPages} pages)`;
+      document.getElementById('success-pdf').innerHTML = `
+        <div style="font-size:15px; font-weight:700;">✅ .QRP File Downloaded!</div>
+        <div style="font-size:13px; margin-top:4px;">📄 File: <strong>${fileName}</strong></div>
+        <div style="font-size:12px; color:#38bdf8; margin-top:2px;">📱 Locked to Device: <strong>${targetDeviceId}</strong></div>
+        <div style="font-size:12px; color:#10b981; margin-top:2px;">⏱️ Valid for 24 Hours from now</div>
+      `;
       document.getElementById('success-pdf').style.display = 'block';
     }
   } catch (error) {
-    document.getElementById('err-pdf').textContent = 'Error generating PDF: ' + error.message;
+    document.getElementById('err-pdf').textContent = error.message;
+    alert(`❌ Generation Failed:\n\n${error.message}`);
   } finally {
     document.getElementById('gen-btn').disabled = false;
+    document.getElementById('info-pdf').style.display = 'none';
   }
 }
 
@@ -1380,7 +1390,8 @@ if ('serviceWorker' in navigator) {
 
 // Window attachments for inline handlers
 window.startPreview = startPreview;
-window.generatePDF = generatePDF;
+window.generateQRP = generateQRP;
+window.generatePDF = generateQRP;
 window.generateSlideshowLink = generateSlideshowLink;
 window.navigatePreview = navigatePreview;
 window.openLicenseModal = openLicenseModal;

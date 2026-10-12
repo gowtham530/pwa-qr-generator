@@ -17,6 +17,8 @@ Thumbs.db
 *.exe
 *.pdf
 android/
+qr-viewer/android/
+qr-viewer/dist/
 C:/PPSBuild/
 
 # Environment files

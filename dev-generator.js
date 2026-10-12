@@ -129,6 +129,19 @@ export async function loadDashboardData() {
     syncStatus.textContent = `ℹ️ ${res.source || 'Loaded'}`;
   }
 
+  // Populate Device Authorization User Dropdown
+  const devUserSelect = document.getElementById('dev-auth-target-user');
+  if (devUserSelect) {
+    const prevVal = devUserSelect.value;
+    devUserSelect.innerHTML = userKeys.map(k => `<option value="${k}">${users[k].username || k}</option>`).join('');
+    if (prevVal && userKeys.includes(prevVal)) {
+      devUserSelect.value = prevVal;
+    }
+    if (window.updateAuthorizedChipsForSelectedUser) {
+      window.updateAuthorizedChipsForSelectedUser();
+    }
+  }
+
   // Render Table
   tableBody.innerHTML = '';
   if (userKeys.length === 0) {
@@ -193,6 +206,7 @@ export async function loadDashboardData() {
                   title="${isSuspended ? 'Unfreeze and reactivate user' : 'Freeze user due to pending payment'}">
             ${isSuspended ? '🟢 Unfreeze' : '🔒 Hold'}
           </button>
+          <button class="btn-action-small" style="background:#0284c7; color:#fff;" onclick="window.manageUserDevices('${key}')" title="Authorize Viewer Devices">📱 Devices (${(user.authorizedDevices || []).length})</button>
           <button class="btn-action-small" onclick="window.viewUserHistory('${key}')" title="View Batch History">📜 History</button>
           <button class="btn-action-renew" onclick="window.renewUser('${key}')" title="Generate New Serial & Renew Quota">🔄 Renewal</button>
           <button class="btn-action-danger" onclick="window.deleteUser('${key}')" title="Delete User">🗑️ Delete</button>
@@ -526,6 +540,59 @@ window.toggleUserSuspension = async function(userKey) {
   await loadDashboardData();
 };
 
+window.manageUserDevices = async function(userKey) {
+  const res = await fetchLicensesFromGitHub();
+  const licenses = res.data || { users: {} };
+  if (!licenses.users || !licenses.users[userKey]) {
+    alert(`User "${userKey}" not found.`);
+    return;
+  }
+  const u = licenses.users[userKey];
+  if (!Array.isArray(u.authorizedDevices)) {
+    u.authorizedDevices = [];
+  }
+
+  const currentListStr = u.authorizedDevices.length > 0 
+    ? u.authorizedDevices.map((d, i) => `  ${i + 1}. ${d}`).join('\n') 
+    : '  (No devices registered yet)';
+
+  const choice = prompt(
+    `📱 Authorized QR Viewer Devices for: "${u.username || userKey}"\n\n` +
+    `Current Authorized Devices:\n${currentListStr}\n\n` +
+    `--------------------------------------------------\n` +
+    `• Enter a new Device ID (e.g. DEV-8821-49A1) to AUTHORIZE it.\n` +
+    `• Type REMOVE [Device ID] to revoke an existing device.\n` +
+    `• Cancel to exit.`,
+    ""
+  );
+
+  if (choice === null) return;
+  const trimmed = choice.trim();
+  if (!trimmed) return;
+
+  if (trimmed.toUpperCase().startsWith('REMOVE ')) {
+    const toRemove = trimmed.slice(7).trim().toUpperCase();
+    const idx = u.authorizedDevices.findIndex(d => d.toUpperCase() === toRemove);
+    if (idx !== -1) {
+      u.authorizedDevices.splice(idx, 1);
+      const pushRes = await pushLicensesToGitHub(licenses, `Remove device ${toRemove} for ${u.username || userKey}`);
+      alert(`✅ Device "${toRemove}" has been removed.`);
+    } else {
+      alert(`❌ Device "${toRemove}" was not found in the authorized list.`);
+    }
+  } else {
+    const newId = trimmed.toUpperCase();
+    if (!u.authorizedDevices.map(d => d.toUpperCase()).includes(newId)) {
+      u.authorizedDevices.push(newId);
+      const pushRes = await pushLicensesToGitHub(licenses, `Authorize device ${newId} for ${u.username || userKey}`);
+      alert(`✅ Device "${newId}" authorized successfully for ${u.username || userKey}!`);
+    } else {
+      alert(`ℹ️ Device "${newId}" is already authorized.`);
+    }
+  }
+  await loadDashboardData();
+};
+
 window.viewUserHistory = function(userKey) {
   const licenses = getLocalLicenses();
   const u = licenses.users ? licenses.users[userKey] : null;
@@ -543,6 +610,101 @@ window.viewUserHistory = function(userKey) {
 
 window.recheckGitHubClicks = function() {
   loadDashboardData();
+};
+
+window.updateAuthorizedChipsForSelectedUser = function() {
+  const select = document.getElementById('dev-auth-target-user');
+  const chipsContainer = document.getElementById('authorized-devices-chips');
+  if (!select || !chipsContainer) return;
+
+  const userKey = select.value;
+  const licenses = getLocalLicenses();
+  const u = licenses.users ? licenses.users[userKey] : null;
+
+  if (!u || !Array.isArray(u.authorizedDevices) || u.authorizedDevices.length === 0) {
+    chipsContainer.innerHTML = `<span style="color: #64748b; font-size: 12px;">No devices authorized yet for this user. Enter an Assistant Device ID above to authorize.</span>`;
+    return;
+  }
+
+  chipsContainer.innerHTML = u.authorizedDevices.map(d => `
+    <span style="display:inline-flex; align-items:center; gap:6px; background:rgba(14,165,233,0.15); border:1px solid rgba(14,165,233,0.35); border-radius:6px; padding:4px 10px; font-family:var(--font-mono); font-size:13px; color:#38bdf8; font-weight:700;">
+      📱 ${d}
+      <button type="button" onclick="window.revokeDevice('${userKey}', '${d}')" style="background:rgba(244,63,94,0.2); border:1px solid rgba(244,63,94,0.4); border-radius:4px; color:#fb7185; cursor:pointer; font-size:11px; font-weight:700; padding:1px 5px; margin-left:4px;" title="Revoke Device">✕ Remove</button>
+    </span>
+  `).join('');
+};
+
+window.authorizeDeviceFormSubmit = async function() {
+  const select = document.getElementById('dev-auth-target-user');
+  const input = document.getElementById('dev-auth-input-id');
+  const btn = document.getElementById('btn-submit-device');
+  if (!select || !input) return;
+
+  const userKey = select.value;
+  const deviceId = (input.value || '').trim().toUpperCase();
+
+  if (!userKey) {
+    alert('Please select a user first.');
+    return;
+  }
+  if (!deviceId) {
+    alert('Please enter a Device ID (e.g. DEV-8821-49A1).');
+    return;
+  }
+
+  btn.disabled = true;
+  btn.textContent = '⏳ Authorizing & Syncing to GitHub...';
+
+  try {
+    const res = await fetchLicensesFromGitHub();
+    const licenses = res.data || { users: {} };
+    if (!licenses.users || !licenses.users[userKey]) {
+      alert(`User "${userKey}" not found.`);
+      return;
+    }
+    const u = licenses.users[userKey];
+    if (!Array.isArray(u.authorizedDevices)) u.authorizedDevices = [];
+
+    if (u.authorizedDevices.map(d => d.toUpperCase()).includes(deviceId)) {
+      alert(`ℹ️ Device "${deviceId}" is already authorized for ${u.username || userKey}.`);
+      input.value = '';
+      return;
+    }
+
+    u.authorizedDevices.push(deviceId);
+    const pushRes = await pushLicensesToGitHub(licenses, `Authorize device ${deviceId} for ${u.username || userKey}`);
+    alert(`✅ Device "${deviceId}" successfully authorized for ${u.username || userKey}!`);
+    input.value = '';
+    await loadDashboardData();
+  } catch (err) {
+    alert('Error authorizing device: ' + err.message);
+  } finally {
+    btn.disabled = false;
+    btn.textContent = '✅ Authorize Device & Save';
+  }
+};
+
+window.revokeDevice = async function(userKey, deviceId) {
+  const confirmRevoke = confirm(`Are you sure you want to revoke Device "${deviceId}" for user "${userKey}"?\n\nThis device will immediately be BLOCKED from opening .QRP files.`);
+  if (!confirmRevoke) return;
+
+  try {
+    const res = await fetchLicensesFromGitHub();
+    const licenses = res.data || { users: {} };
+    if (!licenses.users || !licenses.users[userKey]) return;
+    const u = licenses.users[userKey];
+    if (!Array.isArray(u.authorizedDevices)) return;
+
+    const idx = u.authorizedDevices.findIndex(d => d.toUpperCase() === deviceId.toUpperCase());
+    if (idx !== -1) {
+      u.authorizedDevices.splice(idx, 1);
+      await pushLicensesToGitHub(licenses, `Revoke device ${deviceId} for ${u.username || userKey}`);
+      alert(`✅ Device "${deviceId}" has been revoked.`);
+      await loadDashboardData();
+    }
+  } catch (err) {
+    alert('Error revoking device: ' + err.message);
+  }
 };
 
 window.logoutDeveloper = function() {

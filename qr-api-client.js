@@ -26,9 +26,10 @@ function getApiEndpoint() {
  * @param {string} username - User license name
  * @param {string} serial - License serial key
  * @param {string[]} serials - Array of serial numbers to encrypt
+ * @param {string} targetDeviceId - Authorized Viewer Device ID
  * @param {object} batchInfo - Generation batch details (uan, count, startSerial, etc.)
  */
-export async function requestBatchEncryption(username, serial, serials, batchInfo = null) {
+export async function requestBatchEncryption(username, serial, serials, targetDeviceId, batchInfo = null) {
   const endpoint = getApiEndpoint();
 
   // Cloud history is strictly reserved for developer app (gowtham530.github.io)
@@ -46,6 +47,7 @@ export async function requestBatchEncryption(username, serial, serials, batchInf
         username,
         serial,
         serials,
+        targetDeviceId: (targetDeviceId || '').trim(),
         isDeveloperApp: isDevApp,
         batchInfo: isDevApp ? batchInfo : null
       })
@@ -63,6 +65,29 @@ export async function requestBatchEncryption(username, serial, serials, batchInf
     }
     throw err;
   }
+}
+
+/**
+ * Fetch authoritative network server timestamp
+ */
+export async function fetchServerTime() {
+  const endpoint = getApiEndpoint();
+  try {
+    const res = await fetch(`${endpoint}?action=get_time&_t=${Date.now()}`, {
+      method: 'GET',
+      headers: { 'Accept': 'application/json' }
+    });
+    if (res.ok) {
+      const data = await res.json();
+      if (data.success && data.serverTime) {
+        return Number(data.serverTime);
+      }
+    }
+  } catch (e) {
+    console.warn('Could not fetch server time:', e);
+  }
+  // Fallback to client time if server unreachable
+  return Date.now();
 }
 
 /**
@@ -156,7 +181,8 @@ export async function syncQuotaRemote(username, serial) {
       success: true,
       totalClicks: data.totalClicks,
       usedClicks: data.usedClicks,
-      remainingClicks: data.remainingClicks
+      remainingClicks: data.remainingClicks,
+      authorizedDevices: data.authorizedDevices || []
     };
   } catch (err) {
     return { success: false, error: err.message };

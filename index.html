@@ -613,12 +613,12 @@ button.outline:hover:not(:disabled) {
     </div>
   </div>
 
-  <h2>Generate Random Encrypted QR Codes PDF</h2>
+  <h2>Generate Secure Mill QR Package (.QRP)</h2>
 
   <!-- Quota Exhausted Alert -->
   <div class="quota-exhausted-card" id="exhausted-banner">
     <div class="quota-exhausted-title">⚠️ Click Quota Exhausted (0 Clicks Remaining)</div>
-    <div class="quota-exhausted-desc">You have used all allowed clicks for PDF Generation. Please activate a new serial key from the developer to continue.</div>
+    <div class="quota-exhausted-desc">You have used all allowed clicks for QR Generation. Please activate a new serial key from the developer to continue.</div>
     <button onclick="openLicenseModal(true)" style="background: linear-gradient(135deg, #f43f5e, #8b5cf6); padding: 0 16px; height: 36px; font-size: 13px;">🔑 Enter New Serial Key</button>
   </div>
 
@@ -655,9 +655,27 @@ button.outline:hover:not(:disabled) {
       </div>
     </div>
 
-    <div class="actions-row" style="display: flex; gap: 8px; justify-content: flex-end; margin-top: 12px;">
+    <div class="row" style="margin-top: 14px;">
+      <div class="field" style="flex: 1.4; min-width: 220px;">
+        <div style="display: flex; justify-content: space-between; align-items: center;">
+          <label for="target-device-id">📱 Authorized Viewer Device ID:</label>
+          <span style="font-size: 11px; color: var(--color-accent-1);" id="device-helper-text">Authorized by Developer</span>
+        </div>
+        <input type="text" id="target-device-id" list="authorized-devices-list" placeholder="e.g. DEV-DEMO-001" style="font-family:var(--font-mono);font-weight:600;letter-spacing:1px;text-transform:uppercase" autocomplete="off" spellcheck="false">
+        <datalist id="authorized-devices-list"></datalist>
+        <div class="field-err-text" id="device-id-err"></div>
+      </div>
+      <div class="field" style="flex: 1; min-width: 170px;">
+        <label>🔒 Validity & Security:</label>
+        <div style="font-size: 12px; font-weight: 600; color: #10b981; padding: 10px 12px; background: rgba(16, 185, 129, 0.1); border: 1px solid rgba(16, 185, 129, 0.25); border-radius: 8px; display: flex; align-items: center; gap: 6px;">
+          <span>⏱️</span> <span>24-Hr Window (Network Sync)</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="actions-row" style="display: flex; gap: 8px; justify-content: flex-end; margin-top: 16px;">
       <button id="preview-btn" class="outline" onclick="startPreview()">Preview</button>
-      <button id="gen-btn" onclick="generatePDF()">Generate</button>
+      <button id="gen-btn" onclick="generateQRP()" style="background: linear-gradient(135deg, #0ea5e9, #8b5cf6); font-weight: 700; color: #fff; box-shadow: 0 4px 14px rgba(14, 165, 233, 0.4);">📦 Generate .QRP File</button>
       <button id="link-btn" class="outline" onclick="generateSlideshowLink()">Generate Link</button>
     </div>
     <div class="err" id="err-pdf"></div>

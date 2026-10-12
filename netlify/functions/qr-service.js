@@ -106,12 +106,18 @@ exports.handler = async (event, context) => {
 
     const action = body.action || (event.queryStringParameters && event.queryStringParameters.action) || 'ping';
 
-    // 1. Health check
-    if (action === 'ping') {
+    // 1. Health check & Network Server Time
+    if (action === 'ping' || action === 'get_time' || action === 'time') {
+      const now = Date.now();
       return {
         statusCode: 200,
         headers,
-        body: JSON.stringify({ success: true, message: 'QR Secure Service is active.' })
+        body: JSON.stringify({ 
+          success: true, 
+          message: 'QR Secure Service is active.',
+          serverTime: now,
+          iso: new Date(now).toISOString()
+        })
       };
     }
 
@@ -161,7 +167,8 @@ exports.handler = async (event, context) => {
               totalClicks: total,
               usedClicks: used,
               remainingClicks: rem,
-              status: matched.status || 'active'
+              status: matched.status || 'active',
+              authorizedDevices: matched.authorizedDevices || []
             }
           })
         };
@@ -210,7 +217,8 @@ exports.handler = async (event, context) => {
             totalClicks: total,
             usedClicks: used,
             remainingClicks: Math.max(0, total - used),
-            status: matched.status || 'active'
+            status: matched.status || 'active',
+            authorizedDevices: matched.authorizedDevices || []
           })
         };
       }
@@ -313,6 +321,31 @@ exports.handler = async (event, context) => {
         };
       }
 
+      // Check and validate target Device ID
+      const targetDeviceId = (body.targetDeviceId || '').trim();
+      const authorizedDevices = Array.isArray(matched.authorizedDevices) 
+        ? matched.authorizedDevices.map(d => String(d).trim().toUpperCase()) 
+        : [];
+
+      if (!targetDeviceId) {
+        return {
+          statusCode: 400,
+          headers,
+          body: JSON.stringify({ success: false, error: 'Target Device ID is required. Please select or enter the authorized Viewer Device ID.' })
+        };
+      }
+
+      if (authorizedDevices.length === 0 || !authorizedDevices.includes(targetDeviceId.toUpperCase())) {
+        return {
+          statusCode: 403,
+          headers,
+          body: JSON.stringify({ 
+            success: false, 
+            error: `❌ Unauthorized Device: "${targetDeviceId}" is not authorized by developer for account "${userKey}". Please share this Device ID with developer to activate.` 
+          })
+        };
+      }
+
       const total = Number(matched.totalClicks) || 100;
       let used = Number(matched.usedClicks) || 0;
       let rem = Math.max(0, total - used);
@@ -368,6 +401,8 @@ exports.handler = async (event, context) => {
 
       // Encrypt all serials with the server's private AES key
       const encrypted = serials.map(s => encryptAESGCM(s));
+      const serverTime = Date.now();
+      const expiresAt = serverTime + (24 * 60 * 60 * 1000);
 
       return {
         statusCode: 200,
@@ -377,7 +412,10 @@ exports.handler = async (event, context) => {
           encrypted: encrypted,
           usedClicks: used,
           remainingClicks: rem,
-          totalClicks: total
+          totalClicks: total,
+          serverTime: serverTime,
+          expiresAt: expiresAt,
+          targetDeviceId: targetDeviceId.toUpperCase()
         })
       };
     }

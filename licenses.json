@@ -9,7 +9,10 @@
       "remainingClicks": 100,
       "createdAt": "2026-10-12T16:05:47.275Z",
       "lastActive": null,
-      "history": []
+      "history": [],
+      "authorizedDevices": [
+        "DEV-DEMO-001"
+      ]
     }
   }
 }

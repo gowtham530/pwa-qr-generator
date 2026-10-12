@@ -1,0 +1,590 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=1.0, user-scalable=no">
+<title>QR Viewer - Secure Mill Scanner</title>
+<link rel="manifest" href="./manifest.json">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="QR Viewer">
+<link rel="apple-touch-icon" sizes="180x180" href="./apple-touch-icon.png">
+<link rel="icon" type="image/png" sizes="192x192" href="./icon-192.png">
+<link rel="icon" type="image/png" sizes="512x512" href="./icon-512.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<script type="module" src="./viewer-app.js"></script>
+<style>
+:root {
+  --color-bg-base: #090d16;
+  --color-bg-card: rgba(15, 23, 42, 0.85);
+  --color-border: rgba(148, 163, 184, 0.15);
+  --color-text-primary: #f8fafc;
+  --color-text-secondary: #94a3b8;
+  --color-accent: #0ea5e9;
+  --color-accent-purple: #8b5cf6;
+  --color-danger: #f43f5e;
+  --color-success: #10b981;
+  --color-warning: #f59e0b;
+  --font-main: 'Outfit', sans-serif;
+  --font-mono: 'JetBrains Mono', monospace;
+}
+
+* {
+  box-sizing: border-box;
+  -webkit-tap-highlight-color: transparent;
+}
+
+body {
+  font-family: var(--font-main);
+  background: radial-gradient(circle at top, #1e1b4b 0%, #090d16 60%, #030712 100%);
+  background-attachment: fixed;
+  color: var(--color-text-primary);
+  margin: 0;
+  padding: calc(16px + env(safe-area-inset-top, 0px)) calc(14px + env(safe-area-inset-right, 0px)) calc(24px + env(safe-area-inset-bottom, 0px)) calc(14px + env(safe-area-inset-left, 0px));
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.container {
+  width: 100%;
+  max-width: 600px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+/* Header */
+.app-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 16px;
+  background: var(--color-bg-card);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid var(--color-border);
+  border-radius: 16px;
+  box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.5);
+}
+
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.brand-icon {
+  font-size: 24px;
+}
+
+.brand-title {
+  font-size: 18px;
+  font-weight: 700;
+  margin: 0;
+  background: linear-gradient(135deg, #38bdf8, #818cf8);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+.brand-sub {
+  font-size: 11px;
+  color: var(--color-text-secondary);
+  font-weight: 500;
+}
+
+/* Device ID Bar */
+.device-card {
+  background: rgba(14, 165, 233, 0.08);
+  border: 1px dashed rgba(14, 165, 233, 0.35);
+  border-radius: 14px;
+  padding: 12px 14px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.device-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.device-label {
+  font-size: 11px;
+  color: #38bdf8;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.device-id-code {
+  font-family: var(--font-mono);
+  font-size: 15px;
+  font-weight: 700;
+  color: #fff;
+  letter-spacing: 1px;
+}
+
+.btn-copy-device {
+  background: linear-gradient(135deg, #0284c7, #6366f1);
+  color: #fff;
+  border: none;
+  border-radius: 8px;
+  padding: 8px 12px;
+  font-size: 12px;
+  font-weight: 700;
+  font-family: var(--font-main);
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  box-shadow: 0 4px 12px rgba(14, 165, 233, 0.3);
+  transition: transform 0.15s;
+}
+
+.btn-copy-device:active {
+  transform: scale(0.96);
+}
+
+/* Import / Landing Section */
+.import-card {
+  background: var(--color-bg-card);
+  border: 1px solid var(--color-border);
+  border-radius: 20px;
+  padding: 32px 20px;
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 16px;
+  box-shadow: 0 20px 40px -10px rgba(0, 0, 0, 0.6);
+}
+
+.import-icon {
+  width: 72px;
+  height: 72px;
+  background: rgba(56, 189, 248, 0.12);
+  border: 1px solid rgba(56, 189, 248, 0.3);
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 34px;
+}
+
+.import-title {
+  font-size: 20px;
+  font-weight: 700;
+  color: #fff;
+  margin: 0;
+}
+
+.import-desc {
+  font-size: 13px;
+  color: var(--color-text-secondary);
+  line-height: 1.5;
+  max-width: 420px;
+  margin: 0;
+}
+
+.file-input-wrapper {
+  position: relative;
+  width: 100%;
+  max-width: 320px;
+}
+
+.file-input-wrapper input[type="file"] {
+  position: absolute;
+  left: 0;
+  top: 0;
+  width: 100%;
+  height: 100%;
+  opacity: 0;
+  cursor: pointer;
+}
+
+.btn-open-file {
+  width: 100%;
+  background: linear-gradient(135deg, #0ea5e9, #8b5cf6);
+  color: #fff;
+  border: none;
+  border-radius: 14px;
+  padding: 16px 20px;
+  font-size: 16px;
+  font-weight: 700;
+  font-family: var(--font-main);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  box-shadow: 0 8px 24px rgba(14, 165, 233, 0.4);
+  cursor: pointer;
+  pointer-events: none;
+}
+
+/* Alert Banners */
+.alert-card {
+  border-radius: 14px;
+  padding: 16px;
+  display: none;
+  flex-direction: column;
+  gap: 6px;
+  animation: slideIn 0.25s ease-out;
+}
+
+@keyframes slideIn {
+  from { opacity: 0; transform: translateY(-10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.alert-danger {
+  background: rgba(244, 63, 94, 0.12);
+  border: 1px solid rgba(244, 63, 94, 0.4);
+  color: #fecdd3;
+}
+
+.alert-danger strong {
+  color: #f43f5e;
+  font-size: 15px;
+}
+
+.alert-success {
+  background: rgba(16, 185, 129, 0.12);
+  border: 1px solid rgba(16, 185, 129, 0.4);
+  color: #a7f3d0;
+}
+
+/* Active Scanning Screen */
+.scanner-screen {
+  display: none;
+  flex-direction: column;
+  gap: 14px;
+  width: 100%;
+}
+
+.batch-meta-bar {
+  background: var(--color-bg-card);
+  border: 1px solid var(--color-border);
+  border-radius: 14px;
+  padding: 12px 14px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.batch-uan-pill {
+  font-family: var(--font-mono);
+  font-size: 13px;
+  font-weight: 700;
+  background: rgba(56, 189, 248, 0.15);
+  color: #38bdf8;
+  padding: 4px 10px;
+  border-radius: 8px;
+  border: 1px solid rgba(56, 189, 248, 0.3);
+}
+
+.timer-pill {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  font-weight: 700;
+  background: rgba(16, 185, 129, 0.15);
+  color: #10b981;
+  padding: 4px 10px;
+  border-radius: 8px;
+  border: 1px solid rgba(16, 185, 129, 0.3);
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.timer-pill.urgent {
+  background: rgba(244, 63, 94, 0.15);
+  color: #f43f5e;
+  border-color: rgba(244, 63, 94, 0.3);
+}
+
+.btn-eject {
+  background: rgba(244, 63, 94, 0.15);
+  color: #f43f5e;
+  border: 1px solid rgba(244, 63, 94, 0.3);
+  border-radius: 8px;
+  padding: 4px 10px;
+  font-size: 12px;
+  font-weight: 600;
+  font-family: var(--font-main);
+  cursor: pointer;
+}
+
+/* The Core QR Scanning Stage (Engineered for Mill Hardware Scanners) */
+.scan-stage {
+  background: #ffffff;
+  border-radius: 24px;
+  padding: 24px 16px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 25px 60px -15px rgba(0, 0, 0, 0.8), 0 0 40px rgba(255, 255, 255, 0.1);
+  position: relative;
+}
+
+.qr-canvas-holder {
+  width: 100%;
+  max-width: 320px;
+  aspect-ratio: 1 / 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #ffffff;
+}
+
+.qr-canvas-holder canvas,
+.qr-canvas-holder img {
+  width: 100% !important;
+  height: 100% !important;
+  image-rendering: pixelated;
+  image-rendering: crisp-edges;
+}
+
+/* Serial & Bag Counter on pure white background */
+.scan-details {
+  margin-top: 16px;
+  text-align: center;
+  width: 100%;
+}
+
+.bag-badge {
+  display: inline-block;
+  background: #0f172a;
+  color: #38bdf8;
+  font-family: var(--font-mono);
+  font-size: 14px;
+  font-weight: 800;
+  padding: 4px 14px;
+  border-radius: 20px;
+  letter-spacing: 0.5px;
+}
+
+.serial-text {
+  font-family: var(--font-mono);
+  font-size: 22px;
+  font-weight: 800;
+  color: #0f172a;
+  letter-spacing: 2px;
+  margin-top: 8px;
+}
+
+.progress-track {
+  width: 100%;
+  height: 6px;
+  background: #e2e8f0;
+  border-radius: 4px;
+  margin-top: 14px;
+  overflow: hidden;
+}
+
+.progress-bar-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #0ea5e9, #8b5cf6);
+  width: 0%;
+  transition: width 0.15s ease-out;
+}
+
+/* Big Navigation Controls */
+.nav-controls {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  margin-top: 4px;
+}
+
+.nav-btn {
+  background: var(--color-bg-card);
+  border: 1px solid var(--color-border);
+  color: #fff;
+  border-radius: 16px;
+  padding: 20px 16px;
+  font-size: 18px;
+  font-weight: 700;
+  font-family: var(--font-main);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  box-shadow: 0 10px 20px rgba(0, 0, 0, 0.4);
+  transition: transform 0.1s, background 0.15s;
+}
+
+.nav-btn:active {
+  transform: scale(0.96);
+  background: rgba(30, 41, 59, 0.95);
+}
+
+.nav-btn-next {
+  background: linear-gradient(135deg, #0ea5e9, #6366f1);
+  box-shadow: 0 10px 25px rgba(14, 165, 233, 0.35);
+}
+
+.jump-bar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  background: var(--color-bg-card);
+  border: 1px solid var(--color-border);
+  border-radius: 12px;
+  padding: 8px 14px;
+}
+
+.jump-bar label {
+  font-size: 13px;
+  color: var(--color-text-secondary);
+  font-weight: 500;
+}
+
+.jump-input {
+  width: 80px;
+  background: rgba(0, 0, 0, 0.4);
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  color: #fff;
+  font-family: var(--font-mono);
+  font-size: 14px;
+  font-weight: 700;
+  text-align: center;
+  padding: 6px;
+}
+
+.jump-slider {
+  flex: 1;
+  accent-color: #0ea5e9;
+  cursor: pointer;
+}
+
+/* Network Status Footer */
+.network-status-bar {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  font-size: 11px;
+  color: #64748b;
+  margin-top: 10px;
+}
+
+.status-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #10b981;
+}
+</style>
+</head>
+<body>
+
+<div class="container">
+  <!-- Top App Header -->
+  <header class="app-header">
+    <div class="brand">
+      <span class="brand-icon">📱</span>
+      <div>
+        <h1 class="brand-title">QR Viewer</h1>
+        <div class="brand-sub">Mill Scanner Companion</div>
+      </div>
+    </div>
+    <div id="header-status-badge" style="font-size: 11px; font-weight: 600; color: #10b981; background: rgba(16, 185, 129, 0.12); border: 1px solid rgba(16, 185, 129, 0.3); border-radius: 20px; padding: 4px 10px;">
+      🟢 Active
+    </div>
+  </header>
+
+  <!-- Device ID Card -->
+  <div class="device-card">
+    <div class="device-info">
+      <span class="device-label">My Device ID</span>
+      <span class="device-id-code" id="my-device-id">DEV-LOADING...</span>
+    </div>
+    <button class="btn-copy-device" id="btn-copy-device" title="Copy Device ID">
+      📋 Copy & Share
+    </button>
+  </div>
+
+  <!-- Alert Banner for Security/Expiration Errors -->
+  <div class="alert-card alert-danger" id="alert-banner">
+    <strong id="alert-title">❌ Security Verification Failed</strong>
+    <span id="alert-desc">Details will appear here.</span>
+  </div>
+
+  <!-- 1. Landing Screen: Load .QRP File -->
+  <div class="import-card" id="import-section">
+    <div class="import-icon">📦</div>
+    <h2 class="import-title">Open Secure .QRP File</h2>
+    <p class="import-desc">
+      Select the <strong>.qrp</strong> file generated by the Mill QR Generator.
+      The file will be verified against your Device ID and the 24-hour network validity window.
+    </p>
+
+    <div class="file-input-wrapper">
+      <button class="btn-open-file">📂 Select .QRP File</button>
+      <input type="file" id="file-input" accept=".qrp,application/json" />
+    </div>
+
+    <div style="font-size: 12px; color: #64748b; margin-top: 8px;">
+      🔒 Encrypted for authorized Mill devices only
+    </div>
+  </div>
+
+  <!-- 2. Active Scanner Screen (For Mill Hardware Scanner) -->
+  <div class="scanner-screen" id="scanner-section">
+    <!-- Batch Metadata & 24h Countdown -->
+    <div class="batch-meta-bar">
+      <span class="batch-uan-pill" id="batch-uan-text">UAN: Loading...</span>
+      <span class="timer-pill" id="batch-timer-text">⏳ Validating...</span>
+      <button class="btn-eject" id="btn-eject" title="Close and return to file selection">✕ Close</button>
+    </div>
+
+    <!-- The White Scanner Surface -->
+    <div class="scan-stage">
+      <div class="qr-canvas-holder" id="qr-canvas-holder">
+        <!-- High-contrast QR canvas injected here -->
+      </div>
+      <div class="scan-details">
+        <span class="bag-badge" id="bag-badge-text">Bag 1 of 580</span>
+        <div class="serial-text" id="serial-display-text">AP25R000100</div>
+        <div class="progress-track">
+          <div class="progress-bar-fill" id="progress-bar-fill"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Big Thumb Buttons -->
+    <div class="nav-controls">
+      <button class="nav-btn" id="btn-prev-bag">◀ Prev</button>
+      <button class="nav-btn nav-btn-next" id="btn-next-bag">Next ▶</button>
+    </div>
+
+    <!-- Jump / Slider Bar -->
+    <div class="jump-bar">
+      <label for="bag-slider">Jump:</label>
+      <input type="range" class="jump-slider" id="bag-slider" min="1" max="580" value="1" />
+      <input type="number" class="jump-input" id="bag-number-input" min="1" max="580" value="1" />
+    </div>
+  </div>
+
+  <!-- Network Status Footer -->
+  <footer class="network-status-bar">
+    <span class="status-dot" id="network-dot"></span>
+    <span id="network-status-text">Network Clock Synced (genqr580.netlify.app)</span>
+  </footer>
+</div>
+
+</body>
+</html>

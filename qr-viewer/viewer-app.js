@@ -307,7 +307,162 @@ function jumpToBag(num) {
   }
 }
 
+// ------------------------------------------------------------
+// 5b. Auto-Play Slideshow Engine (Hands-Free Scanner Feed)
+// ------------------------------------------------------------
+let autoPlayTimer = null;
+let autoPlayCountdownInterval = null;
+let autoPlayIntervalSec = 2.0;
+let autoPlayNextTime = 0;
+let screenWakeLock = null;
+
+function updateAutoPlayButtonText() {
+  const btnText = document.getElementById('autoplay-btn-text');
+  if (btnText) {
+    if (autoPlayTimer) {
+      btnText.textContent = `Pause Auto Move (${autoPlayIntervalSec}s)`;
+    } else {
+      btnText.textContent = `Start Auto Move (Every ${autoPlayIntervalSec}s)`;
+    }
+  }
+}
+
+function setAutoPlayInterval(sec) {
+  const parsed = parseFloat(sec);
+  if (isNaN(parsed) || parsed < 0.5) return;
+  autoPlayIntervalSec = Math.round(parsed * 10) / 10;
+  try {
+    localStorage.setItem('qr_viewer_autoplay_sec', String(autoPlayIntervalSec));
+  } catch (e) {}
+
+  // Update custom input value
+  const customInput = document.getElementById('custom-interval-input');
+  if (customInput) customInput.value = autoPlayIntervalSec;
+
+  // Update chips active state
+  document.querySelectorAll('.chip-interval').forEach(chip => {
+    const chipSec = parseFloat(chip.dataset.sec);
+    if (chipSec === autoPlayIntervalSec) {
+      chip.classList.add('active');
+    } else {
+      chip.classList.remove('active');
+    }
+  });
+
+  updateAutoPlayButtonText();
+
+  // If auto-play is actively running, smoothly reset the timer for the new duration
+  if (autoPlayTimer) {
+    startAutoPlay();
+  }
+}
+
+async function requestScreenWakeLock() {
+  try {
+    if ('wakeLock' in navigator && !screenWakeLock) {
+      screenWakeLock = await navigator.wakeLock.request('screen');
+      screenWakeLock.addEventListener('release', () => {
+        screenWakeLock = null;
+      });
+    }
+  } catch (e) {
+    console.warn('Screen wake lock unavailable:', e);
+  }
+}
+
+function releaseScreenWakeLock() {
+  if (screenWakeLock) {
+    try {
+      screenWakeLock.release();
+    } catch (e) {}
+    screenWakeLock = null;
+  }
+}
+
+function startAutoPlay() {
+  if (!activeBatch) return;
+
+  // Clear any existing timer
+  if (autoPlayTimer) clearTimeout(autoPlayTimer);
+  if (autoPlayCountdownInterval) clearInterval(autoPlayCountdownInterval);
+
+  // If already at end of batch, wrap around to bag 1
+  if (currentItemIndex >= activeBatch.items.length - 1) {
+    currentItemIndex = 0;
+    renderCurrentQR();
+  }
+
+  const btn = document.getElementById('btn-toggle-autoplay');
+  const btnIcon = document.getElementById('autoplay-btn-icon');
+  const badge = document.getElementById('auto-play-countdown');
+  const secsLeftEl = document.getElementById('auto-secs-left');
+
+  if (btn) btn.classList.add('running');
+  if (btnIcon) btnIcon.textContent = '⏸';
+  if (badge) badge.style.display = 'inline-block';
+  updateAutoPlayButtonText();
+
+  requestScreenWakeLock();
+
+  const ms = Math.max(500, autoPlayIntervalSec * 1000);
+  autoPlayNextTime = Date.now() + ms;
+
+  // Update countdown display every 100ms
+  autoPlayCountdownInterval = setInterval(() => {
+    const left = Math.max(0, autoPlayNextTime - Date.now()) / 1000;
+    if (secsLeftEl) secsLeftEl.textContent = left.toFixed(1);
+  }, 100);
+
+  autoPlayTimer = setTimeout(() => {
+    if (!activeBatch) {
+      stopAutoPlay();
+      return;
+    }
+
+    if (currentItemIndex < activeBatch.items.length - 1) {
+      currentItemIndex++;
+      renderCurrentQR();
+      // Schedule next QR step
+      startAutoPlay();
+    } else {
+      stopAutoPlay();
+      alert(`🎉 Batch Completed!\n\nAll ${activeBatch.items.length} bags have been scanned.`);
+    }
+  }, ms);
+}
+
+function stopAutoPlay() {
+  if (autoPlayTimer) {
+    clearTimeout(autoPlayTimer);
+    autoPlayTimer = null;
+  }
+  if (autoPlayCountdownInterval) {
+    clearInterval(autoPlayCountdownInterval);
+    autoPlayCountdownInterval = null;
+  }
+
+  releaseScreenWakeLock();
+
+  const btn = document.getElementById('btn-toggle-autoplay');
+  const btnIcon = document.getElementById('autoplay-btn-icon');
+  const badge = document.getElementById('auto-play-countdown');
+
+  if (btn) btn.classList.remove('running');
+  if (btnIcon) btnIcon.textContent = '▶';
+  if (badge) badge.style.display = 'none';
+  updateAutoPlayButtonText();
+}
+
+function toggleAutoPlay() {
+  if (autoPlayTimer) {
+    stopAutoPlay();
+  } else {
+    startAutoPlay();
+  }
+}
+
 function closeBatch() {
+  stopAutoPlay();
   if (countdownTimerInterval) clearInterval(countdownTimerInterval);
   activeBatch = null;
   document.getElementById('scanner-section').style.display = 'none';
@@ -370,19 +525,71 @@ document.addEventListener('DOMContentLoaded', () => {
     });
   }
 
+  // Auto-Play Controls
+  const btnToggleAutoPlay = document.getElementById('btn-toggle-autoplay');
+  if (btnToggleAutoPlay) {
+    btnToggleAutoPlay.addEventListener('click', toggleAutoPlay);
+  }
+
+  // Interval preset chips (1s, 2s, 3s, 5s)
+  document.querySelectorAll('.chip-interval').forEach(chip => {
+    chip.addEventListener('click', (e) => {
+      const sec = e.currentTarget.getAttribute('data-sec');
+      setAutoPlayInterval(sec);
+    });
+  });
+
+  // Custom interval number input
+  const customIntervalInput = document.getElementById('custom-interval-input');
+  if (customIntervalInput) {
+    customIntervalInput.addEventListener('change', (e) => {
+      setAutoPlayInterval(e.target.value);
+    });
+    customIntervalInput.addEventListener('input', (e) => {
+      const val = parseFloat(e.target.value);
+      if (!isNaN(val) && val >= 0.5) {
+        setAutoPlayInterval(val);
+      }
+    });
+  }
+
+  // Initialize preferred autoplay interval
+  try {
+    const savedSec = localStorage.getItem('qr_viewer_autoplay_sec');
+    if (savedSec) {
+      setAutoPlayInterval(savedSec);
+    } else {
+      setAutoPlayInterval(2.0);
+    }
+  } catch (e) {
+    setAutoPlayInterval(2.0);
+  }
+
   // Navigation Buttons
-  document.getElementById('btn-next-bag')?.addEventListener('click', nextBag);
-  document.getElementById('btn-prev-bag')?.addEventListener('click', prevBag);
+  document.getElementById('btn-next-bag')?.addEventListener('click', () => {
+    nextBag();
+    if (autoPlayTimer) startAutoPlay(); // reset timer on manual step
+  });
+  document.getElementById('btn-prev-bag')?.addEventListener('click', () => {
+    prevBag();
+    if (autoPlayTimer) startAutoPlay(); // reset timer on manual step
+  });
 
   // Jump input & slider
   const slider = document.getElementById('bag-slider');
   const numInput = document.getElementById('bag-number-input');
 
   if (slider) {
-    slider.addEventListener('input', (e) => jumpToBag(e.target.value));
+    slider.addEventListener('input', (e) => {
+      jumpToBag(e.target.value);
+      if (autoPlayTimer) startAutoPlay();
+    });
   }
   if (numInput) {
-    numInput.addEventListener('change', (e) => jumpToBag(e.target.value));
+    numInput.addEventListener('change', (e) => {
+      jumpToBag(e.target.value);
+      if (autoPlayTimer) startAutoPlay();
+    });
   }
 
   // Close / Eject button

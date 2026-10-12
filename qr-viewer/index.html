@@ -469,6 +469,139 @@ body {
   padding: 6px;
 }
 
+/* Auto-Play Controller */
+.auto-play-card {
+  background: var(--color-bg-card);
+  border: 1px solid var(--color-border);
+  border-radius: 16px;
+  padding: 14px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.4);
+}
+
+.auto-play-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.auto-play-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.auto-play-icon {
+  font-size: 20px;
+}
+
+.auto-countdown-badge {
+  font-family: var(--font-mono);
+  font-size: 12px;
+  font-weight: 700;
+  color: #38bdf8;
+  background: rgba(56, 189, 248, 0.15);
+  border: 1px solid rgba(56, 189, 248, 0.3);
+  padding: 3px 10px;
+  border-radius: 20px;
+  animation: pulseBadge 1.2s infinite ease-in-out;
+}
+
+@keyframes pulseBadge {
+  0% { transform: scale(1); opacity: 0.85; }
+  50% { transform: scale(1.05); opacity: 1; }
+  100% { transform: scale(1); opacity: 0.85; }
+}
+
+.auto-play-controls {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.btn-autoplay-start {
+  width: 100%;
+  height: 44px;
+  background: linear-gradient(135deg, #10b981, #059669);
+  color: #fff;
+  border: none;
+  border-radius: 12px;
+  font-size: 15px;
+  font-weight: 700;
+  font-family: var(--font-main);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  cursor: pointer;
+  box-shadow: 0 4px 14px rgba(16, 185, 129, 0.35);
+  transition: all 0.2s;
+}
+
+.btn-autoplay-start:active {
+  transform: scale(0.98);
+}
+
+.btn-autoplay-start.running {
+  background: linear-gradient(135deg, #f43f5e, #e11d48);
+  box-shadow: 0 4px 14px rgba(244, 63, 94, 0.4);
+}
+
+.interval-selector {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.interval-chips {
+  display: flex;
+  gap: 6px;
+}
+
+.chip-interval {
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid var(--color-border);
+  color: var(--color-text-secondary);
+  border-radius: 8px;
+  padding: 5px 12px;
+  font-size: 12px;
+  font-weight: 600;
+  font-family: var(--font-mono);
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.chip-interval.active {
+  background: rgba(14, 165, 233, 0.2);
+  border-color: #0ea5e9;
+  color: #38bdf8;
+  font-weight: 700;
+}
+
+.custom-interval-wrap {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.custom-interval-wrap input {
+  width: 58px;
+  height: 32px;
+  background: rgba(0, 0, 0, 0.35);
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  color: #fff;
+  font-family: var(--font-mono);
+  font-size: 13px;
+  font-weight: 700;
+  text-align: center;
+  outline: none;
+}
+
 .jump-slider {
   flex: 1;
   accent-color: #0ea5e9;
@@ -566,6 +699,43 @@ body {
         <div class="serial-text" id="serial-display-text">AP25R000100</div>
         <div class="progress-track">
           <div class="progress-bar-fill" id="progress-bar-fill"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Auto-Play / Hands-Free Slideshow Bar -->
+    <div class="auto-play-card">
+      <div class="auto-play-header">
+        <div class="auto-play-title">
+          <span class="auto-play-icon">⏱️</span>
+          <div>
+            <div style="font-weight: 700; font-size: 14px;">Auto Move QR Codes</div>
+            <div style="font-size: 11px; color: var(--color-text-secondary);">Automatic step-by-step scanner feed</div>
+          </div>
+        </div>
+        <div id="auto-play-countdown" class="auto-countdown-badge" style="display: none;">
+          ⏳ Next in <span id="auto-secs-left">2.0</span>s
+        </div>
+      </div>
+
+      <div class="auto-play-controls">
+        <button id="btn-toggle-autoplay" class="btn-autoplay-start" type="button">
+          <span id="autoplay-btn-icon">▶</span>
+          <span id="autoplay-btn-text">Start Auto Move (Every 2s)</span>
+        </button>
+
+        <div class="interval-selector">
+          <span style="font-size: 12px; font-weight: 600; color: #94a3b8;">Set Interval:</span>
+          <div class="interval-chips">
+            <button type="button" class="chip-interval" data-sec="1">1s</button>
+            <button type="button" class="chip-interval active" data-sec="2">2s</button>
+            <button type="button" class="chip-interval" data-sec="3">3s</button>
+            <button type="button" class="chip-interval" data-sec="5">5s</button>
+          </div>
+          <div class="custom-interval-wrap">
+            <input type="number" id="custom-interval-input" min="0.5" max="30" step="0.5" value="2" title="Custom Seconds" />
+            <span style="font-size: 12px; color: #94a3b8;">sec</span>
+          </div>
         </div>
       </div>
     </div>
